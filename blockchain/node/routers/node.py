@@ -17,7 +17,7 @@ async def register_node(
         blockchain.register_node(node_address)
 
     # gossip neighbors
-    blockchain.gossip_neighbors(ignore_nodes=data.nodes)
+    await blockchain.gossip_neighbors(ignore_nodes=data.nodes)
 
     return JSONResponse(
         content={
@@ -30,21 +30,20 @@ async def register_node(
 
 @router.post("/resolve")
 async def resolve_conflicts(blockchain: Node = Depends(get_blockchain)):
-    replaced = blockchain.resolve_conflicts()
-    
+    replaced = await blockchain.resolve_conflicts(blockchain.session)
+    chain = await blockchain.get_chain(blockchain.session)
     if replaced:
         return JSONResponse(
             content={
                 'message': 'Our chain was replaced',
-                'new_chain': [block.model_dump() for block in blockchain.chain]
+                'new_chain': [b.model_dump(mode="json") for b in chain]
             },
             status_code=200
         )
-    else:
-        return JSONResponse(
-            content={
-                'message': 'Our chain is authoritative',
-                'chain': [block.model_dump() for block in blockchain.chain]
-            },
-            status_code=200
-        )
+    return JSONResponse(
+        content={
+            'message': 'Our chain is authoritative',
+            'chain': [b.model_dump(mode="json") for b in chain]
+        },
+        status_code=200
+    )

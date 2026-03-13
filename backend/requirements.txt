@@ -21,3 +21,4 @@ python-jose==3.3.0
 python-dotenv==1.2.1
 PyJWT==2.10.1
 cryptography==43.0.3
+requests==2.32.5

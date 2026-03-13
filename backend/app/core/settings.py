@@ -84,12 +84,21 @@ class AuthSettings(BaseSettings):
     )
 
 
+class BlockchainSettings(BaseSettings):
+    BLOCKCHAIN_HOST: str = "http://localhost"
+    BLOCKCHAIN_PORT: int = 5000
+
+    model_config = SettingsConfigDict(
+        env_file=".env", case_sensitive=False, extra="ignore"
+    )
+
+
 class Settings(BaseSettings):
     app_settings: AppSettings = AppSettings()
     database_settings: DatabaseSettings = DatabaseSettings()
     redis_settings: RedisSettings = RedisSettings()
     logging_settings: LoggingSettings = LoggingSettings()
     auth_settings: AuthSettings = AuthSettings()
-
+    blockchain_settings: BlockchainSettings = BlockchainSettings()
 
 settings = Settings()
