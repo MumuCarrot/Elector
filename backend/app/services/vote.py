@@ -1,12 +1,11 @@
-from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging_config import get_logger
-from app.exceptions.user import PermissionDeniedError, VoteNotFoundError
 from app.models.user import User
 from app.schemas.vote import VoteCreate, VoteUpdate, VoteResponse
+from app.services.blockchain_client import create_transaction
 
 logger = get_logger("vote_service")
 
@@ -18,8 +17,20 @@ class VoteService:
     async def create_vote(
         session: AsyncSession, vote_data: VoteCreate, current_user: User
     ) -> VoteResponse:
-        """Create a new vote."""
+        """Create a new vote by sending a transaction to the blockchain."""
         
+        result = await create_transaction(
+            election_id=vote_data.election_id,
+            voter_id=current_user.id,
+            candidate_id=vote_data.candidate_id,
+        )
+        return VoteResponse(
+            id=result["transaction_id"],
+            election_id=vote_data.election_id,
+            voter_id=current_user.id,
+            candidate_id=vote_data.candidate_id,
+            created_at=result.get("created_at"),
+        )
 
     @staticmethod
     async def get_vote_by_id(

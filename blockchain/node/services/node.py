@@ -130,20 +130,31 @@ class Node:
         block_repo = BlockRepository(session)
         return await block_repo.get_chain_ordered()
 
-    async def _get_confirmed_tx_ids(self, session: AsyncSession) -> set[str]:
-        """Return set of tx ids already in the chain (to avoid mempool duplicates)."""
-        blocks = await BlockRepository(session).get_chain_ordered()
-        return {tx.id for b in blocks for tx in b.transactions}
+
+    async def _get_confirmed_tx_ids(
+        self, session: AsyncSession, tx_ids: list[str]
+    ) -> set[str]:
+        """Return set of tx ids linked to any block (query via Block.transactions)."""
+
+        if not tx_ids:
+            return set()
+            
+        return await BlockRepository(session).get_transaction_ids_in_chain(tx_ids)
+
 
     async def add_to_mempool(
         self, session: AsyncSession, transactions: list[TransactionSchema]
     ) -> None:
         """Add transactions to mempool, skipping those already confirmed in chain."""
+
         if not transactions:
             return
-        confirmed = await self._get_confirmed_tx_ids(session)
+            
+        tx_ids = [tx.id for tx in transactions]
+        confirmed = await self._get_confirmed_tx_ids(session, tx_ids)
         to_add = [tx for tx in transactions if tx.id not in confirmed]
         self.mempool.new_transactions(to_add)
+
 
     async def _get_chain_schemas(self, session: AsyncSession) -> list[BlockSchema]:
         """Fetch chain as Pydantic schemas for API/gossip."""
@@ -474,7 +485,8 @@ class Node:
             return
 
         # Final check: abort if any tx already in chain (prevents duplicate blocks)
-        confirmed = await self._get_confirmed_tx_ids(session)
+        tx_ids = [tx.id for tx in transactions]
+        confirmed = await self._get_confirmed_tx_ids(session, tx_ids)
         already_mined = [tx for tx in transactions if tx.id in confirmed]
         if already_mined:
             logger.warning(

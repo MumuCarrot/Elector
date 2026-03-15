@@ -10,7 +10,6 @@ from app.utils.id_mixin import IdMixin
 if TYPE_CHECKING:
     from app.models.user_profile import UserProfile
     from app.models.user_role_link import UserRoleLink
-    from app.models.vote import Vote
     from app.models.election_access import ElectionAccess
     from app.models.attachment import Attachment
 
@@ -33,7 +32,6 @@ class User(IdMixin, Base):
     # Relationships
     profile: Mapped[Optional["UserProfile"]] = relationship("UserProfile", back_populates="user", uselist=False)
     role_links: Mapped[list["UserRoleLink"]] = relationship("UserRoleLink", back_populates="user")
-    votes: Mapped[list["Vote"]] = relationship("Vote", back_populates="voter", foreign_keys="Vote.voter_id")
     election_accesses: Mapped[list["ElectionAccess"]] = relationship("ElectionAccess", back_populates="user")
     attachments: Mapped[list["Attachment"]] = relationship("Attachment", back_populates="user")
 

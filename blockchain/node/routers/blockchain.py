@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.responses import Response
 
 from node.dependencies import get_blockchain, get_session
 from node.schemas.block import Block
@@ -30,7 +29,14 @@ async def new_transaction(
     await blockchain.gossip_transactions(session)
 
     return JSONResponse(
-        content={'message': f'Transaction will be added to chain soon'},
+        content={
+            'message': 'Transaction will be added to chain soon',
+            'transaction_id': data.id,
+            'election_id': data.election_id,
+            'voter_id': data.voter_id,
+            'candidate_id': data.candidate_id,
+            'created_at': data.created_at.isoformat() if data.created_at else None,
+        },
         status_code=201
     )
 
@@ -52,24 +58,30 @@ async def mined_block(block: Block, blockchain: Node = Depends(get_blockchain)):
     session = blockchain.session
     chain_schemas = await blockchain.get_chain(session)
     last_block = await blockchain.last_block(session)
+    
     if not last_block:
         logger.warning("Mined block rejected: no last block")
         return
+
     if block.index != len(chain_schemas) + 1:
         logger.warning("Mined block rejected: index not valid (got %s, expected %s)", block.index, len(chain_schemas) + 1)
         return
+
     if block.previous_hash != blockchain.hash(last_block):
         logger.warning("Mined block rejected: previous hash does not match")
         return
+
     if not blockchain.valid_nonce(
         block.index, block.transactions, last_block.nonce,
         block.previous_hash, block.timestamp, block.nonce
     ):
         logger.warning("Mined block rejected: nonce is not valid")
         return
+
     if not blockchain.mempool.contains_all(block.transactions):
         logger.warning("Mined block rejected: mempool does not contain all transactions")
         return
+
     if not await blockchain.valid_chain(chain=chain_schemas + [block]):
         logger.warning("Mined block rejected: chain not valid after adding block")
         return

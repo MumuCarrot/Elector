@@ -8,7 +8,6 @@ from app.utils.id_mixin import IdMixin
 
 if TYPE_CHECKING:
     from app.models.election import Election
-    from app.models.vote import Vote
     from app.models.attachment import Attachment
 
 
@@ -25,7 +24,6 @@ class Candidate(IdMixin, Base):
 
     # Relationships
     election: Mapped["Election"] = relationship("Election", back_populates="candidates")
-    votes: Mapped[list["Vote"]] = relationship("Vote", back_populates="candidate")
     attachments: Mapped[list["Attachment"]] = relationship("Attachment", back_populates="candidate")
 
     def __repr__(self):

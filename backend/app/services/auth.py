@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 from fastapi import Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,8 +7,6 @@ from app.exceptions.user import (
     InvalidCredentialsError,
     UserNotFoundError,
 )
-from app.models.login_attempt import LoginAttempt
-from app.repository.login_attempt_repository import LoginAttemptRepository
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 from app.schemas.user import UserResponse
 from app.services.user import UserService
@@ -23,13 +19,6 @@ from app.utils.jwt import (
 from app.utils.password import verify_password
 
 logger = get_logger("auth_service")
-
-
-def get_client_ip(request: Request) -> str:
-    """Extract client IP address from request."""
-    if request.client:
-        return request.client.host
-    return "unknown"
 
 
 class AuthService:
@@ -67,30 +56,13 @@ class AuthService:
 
         user = await UserService.get_user_by_email(session, login_data.email)
 
-        ip_address = get_client_ip(request)
-
-        login_attempt_repo = LoginAttemptRepository(session)
-        login_attempt = LoginAttempt(
-            user_id=user.id if user else None,
-            email=login_data.email,
-            ip_address=ip_address,
-            success=False,
-            timestamp=datetime.now(timezone.utc).replace(tzinfo=None),
-        )
-
         if not user:
             logger.warning(f"Login failed: User with email {login_data.email} not found")
-            await login_attempt_repo.create(login_attempt)
             raise InvalidCredentialsError("Invalid email or password")
 
         if not verify_password(login_data.password, user.password_hash):
             logger.warning(f"Login failed: Invalid password for user {user.id}")
-            await login_attempt_repo.create(login_attempt)
             raise InvalidCredentialsError("Invalid email or password")
-
-        login_attempt.success = True
-        login_attempt.user_id = user.id
-        await login_attempt_repo.create(login_attempt)
 
         tokens = create_pair_tokens(subject=user.id)
 

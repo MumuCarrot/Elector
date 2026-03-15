@@ -80,6 +80,6 @@ async def protected_endpoint(
             "message": "Authentication successful!",
             "authenticated": True,
             "user_id": auth.id,
-            "user_login": auth.login,
+            "user_email": auth.email,
         }
     )

@@ -10,7 +10,6 @@ from app.utils.id_mixin import IdMixin
 if TYPE_CHECKING:
     from app.models.election_setting import ElectionSetting
     from app.models.candidates import Candidate
-    from app.models.vote import Vote
     from app.models.election_access import ElectionAccess
     from app.models.election_results_cache import ElectionResultsCache
     from app.models.attachment import Attachment
@@ -44,7 +43,6 @@ class Election(IdMixin, Base):
         single_parent=True,
     )
     candidates: Mapped[list["Candidate"]] = relationship("Candidate", back_populates="election", cascade="all, delete-orphan")
-    votes: Mapped[list["Vote"]] = relationship("Vote", back_populates="election")
     accesses: Mapped[list["ElectionAccess"]] = relationship("ElectionAccess", back_populates="election")
     results_cache: Mapped[Optional["ElectionResultsCache"]] = relationship("ElectionResultsCache", back_populates="election", uselist=False)
     attachments: Mapped[list["Attachment"]] = relationship("Attachment", back_populates="election")

@@ -62,3 +62,10 @@ class ValidationError(HTTPException):
 
     def __init__(self, detail: str = "Validation error"):
         super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
+
+class BlockchainConnectionError(HTTPException):
+    """Exception raised when blockchain node is unreachable."""
+
+    def __init__(self, detail: str = "Blockchain node is unreachable"):
+        super().__init__(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=detail)

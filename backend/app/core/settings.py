@@ -41,10 +41,10 @@ class DatabaseSettings(BaseSettings):
 class RedisSettings(BaseSettings):
     DEPLOY_MODE: str = "LOCAL"  # LOCAL or DOCKER
     REDIS_PROTOCOL: str = "redis"
-    REDIS_HOST_LOCAL: str = "redis"
+    REDIS_HOST_LOCAL: str = "localhost"
     REDIS_HOST_PROD: str = "redis"
     REDIS_PORT: int = 6379
-
+    
     @computed_field
     @property
     def REDIS_URL(self) -> str:
