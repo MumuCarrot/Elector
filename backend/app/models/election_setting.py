@@ -22,6 +22,7 @@ class ElectionSetting(IdMixin, Base):
     allow_revoting: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     max_votes: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     require_auth: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    anonymous: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Relationships
     election: Mapped["Election"] = relationship("Election", back_populates="settings")

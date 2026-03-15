@@ -70,22 +70,27 @@ class ElectionService {
         });
     }
 
-    async submitVote(electionId, candidateIds) {
+    async requestAnonymousToken(electionId) {
+        const response = await this.request(`/votes/election/${electionId}/request-token`, {
+            method: 'POST',
+        });
+        return response.token;
+    }
+
+    async submitVote(electionId, candidateIds, anonymousToken = null) {
         const votes = Array.isArray(candidateIds) ? candidateIds : [candidateIds];
-        const results = [];
-        
-        for (const candidateId of votes) {
-            const result = await this.request('/votes', {
-                method: 'POST',
-                data: {
-                    election_id: electionId,
-                    candidate_id: candidateId,
-                },
-            });
-            results.push(result);
+        const data = {
+            election_id: electionId,
+            candidate_ids: votes,
+        };
+        if (anonymousToken) {
+            data.anonymous_token = anonymousToken;
         }
-        
-        return results;
+        const response = await this.request('/votes/batch', {
+            method: 'POST',
+            data,
+        });
+        return response.votes || [response];
     }
 
     async getMyVote(electionId) {

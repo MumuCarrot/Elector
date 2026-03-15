@@ -13,10 +13,9 @@ function CreateVotePage() {
         settings: {
             start_date: '',
             end_date: '',
-            is_public: true,
             allow_revoting: false,
             max_votes: 1,
-            require_auth: true,
+            anonymous: false,
         },
     });
     const [pdfFile, setPdfFile] = useState(null);
@@ -139,7 +138,7 @@ function CreateVotePage() {
                 description: formData.description || null,
                 start_date: formData.settings.start_date || null,
                 end_date: formData.settings.end_date || null,
-                is_public: formData.settings.is_public,
+                is_public: false,
                 candidates: formData.candidates
                     .filter(cand => cand.name.trim())
                     .map(cand => ({
@@ -149,7 +148,8 @@ function CreateVotePage() {
                 settings: {
                     allow_revoting: formData.settings.allow_revoting,
                     max_votes: parseInt(formData.settings.max_votes) || 1,
-                    require_auth: formData.settings.require_auth,
+                    require_auth: true,
+                    anonymous: formData.settings.anonymous,
                 },
             };
 
@@ -330,14 +330,13 @@ function CreateVotePage() {
                                 <label className="flex items-center">
                                     <input
                                         type="checkbox"
-                                        name="settings.is_public"
-                                        checked={formData.settings.is_public}
+                                        name="settings.anonymous"
+                                        checked={formData.settings.anonymous}
                                         onChange={handleChange}
                                         className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                                     />
-                                    <span className="ml-2 text-sm text-gray-700">Public election (visible to everyone)</span>
+                                    <span className="ml-2 text-sm text-gray-700">Anonymous voting (votes stored without user identity)</span>
                                 </label>
-
                                 <label className="flex items-center">
                                     <input
                                         type="checkbox"
@@ -347,17 +346,6 @@ function CreateVotePage() {
                                         className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                                     />
                                     <span className="ml-2 text-sm text-gray-700">Allow revoting</span>
-                                </label>
-
-                                <label className="flex items-center">
-                                    <input
-                                        type="checkbox"
-                                        name="settings.require_auth"
-                                        checked={formData.settings.require_auth}
-                                        onChange={handleChange}
-                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                    />
-                                    <span className="ml-2 text-sm text-gray-700">Require authentication to vote</span>
                                 </label>
                             </div>
                         </div>

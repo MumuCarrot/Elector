@@ -53,7 +53,7 @@ function UserProfilePage() {
             if (userInfo.id || userInfo._id) {
                 try {
                     const votesData = await userProfileService.getUserVotes(userInfo.id || userInfo._id);
-                    const votesArray = Array.isArray(votesData) ? votesData : [];
+                    const votesArray = Array.isArray(votesData) ? votesData : (votesData?.votes || []);
                     setVotes(votesArray);
                     
                     const votesDetails = await Promise.all(

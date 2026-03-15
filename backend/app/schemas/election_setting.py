@@ -11,6 +11,9 @@ class ElectionSettingBase(BaseModel):
         default=1, ge=1, description="Maximum number of votes allowed"
     )
     require_auth: bool = True
+    anonymous: bool = Field(
+        default=False, description="Anonymous voting (votes stored with token instead of user id)"
+    )
 
 
 class ElectionSettingCreate(ElectionSettingBase):
@@ -27,6 +30,7 @@ class ElectionSettingUpdate(BaseModel):
         None, ge=1, description="Maximum number of votes allowed"
     )
     require_auth: Optional[bool] = None
+    anonymous: Optional[bool] = None
 
 
 class ElectionSettingResponse(ElectionSettingBase):

@@ -60,6 +60,7 @@ class ElectionService:
                 allow_revoting=election_data.settings.allow_revoting,
                 max_votes=election_data.settings.max_votes,
                 require_auth=election_data.settings.require_auth,
+                anonymous=getattr(election_data.settings, "anonymous", False),
             )
         else:
             new_setting = ElectionSetting(
@@ -67,6 +68,7 @@ class ElectionService:
                 allow_revoting=True,
                 max_votes=1,
                 require_auth=True,
+                anonymous=False,
             )
         await setting_repo.create(new_setting)
         logger.info(f"Created election settings for election {created_election.id}")
@@ -168,6 +170,7 @@ class ElectionService:
                     allow_revoting=election_data.settings.allow_revoting,
                     max_votes=election_data.settings.max_votes,
                     require_auth=election_data.settings.require_auth,
+                    anonymous=getattr(election_data.settings, "anonymous", False),
                 )
                 await setting_repo.create(new_setting)
                 logger.info(f"Created election settings for election {election_id}")

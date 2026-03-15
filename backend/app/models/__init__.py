@@ -9,6 +9,7 @@ from app.models.election_access import ElectionAccess
 from app.models.election_results_cache import ElectionResultsCache
 from app.models.candidates import Candidate
 from app.models.attachment import Attachment
+from app.models.anonymous_vote_token import AnonymousVoteToken
 
 __all__ = [
     "User",
@@ -21,4 +22,5 @@ __all__ = [
     "ElectionResultsCache",
     "Candidate",
     "Attachment",
+    "AnonymousVoteToken",
 ]

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class VoteBase(BaseModel):
@@ -17,6 +17,21 @@ class VoteCreate(BaseModel):
 
     election_id: str
     candidate_id: str | None = None
+    anonymous_token: str | None = Field(
+        None,
+        description="One-time token for anonymous voting (required when election is anonymous)",
+    )
+
+
+class VoteBatchCreate(BaseModel):
+    """Schema for creating multiple votes at once (e.g. when max_votes > 1)."""
+
+    election_id: str
+    candidate_ids: list[str] = Field(..., min_length=1)
+    anonymous_token: str | None = Field(
+        None,
+        description="One-time token for anonymous voting (required when election is anonymous)",
+    )
 
 
 class VoteUpdate(BaseModel):

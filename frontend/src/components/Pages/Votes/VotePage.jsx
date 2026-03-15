@@ -93,8 +93,13 @@ function VotePage() {
         return isOwner() && !isElectionStarted(election);
     };
 
+    const canVote = () => {
+        if (!isElectionStarted(election) || isElectionEnded(election)) return false;
+        return !hasVoted || election?.settings?.allow_revoting;
+    };
+
     const handleCandidateToggle = (candidateId) => {
-        if (hasVoted || !isElectionStarted(election)) return;
+        if (!canVote()) return;
 
         const maxVotes = election.settings?.max_votes || 1;
         setSelectedCandidates(prev => {
@@ -124,7 +129,11 @@ function VotePage() {
         setError('');
 
         try {
-            await electionService.submitVote(id, selectedCandidates);
+            let anonymousToken = null;
+            if (election?.settings?.anonymous) {
+                anonymousToken = await electionService.requestAnonymousToken(id);
+            }
+            await electionService.submitVote(id, selectedCandidates, anonymousToken);
             setHasVoted(true);
             setSelectedCandidates([]);
             await fetchElection();
@@ -314,6 +323,11 @@ function VotePage() {
                                 Ended
                             </span>
                         )}
+                        {election.settings?.anonymous && (
+                            <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium">
+                                Anonymous
+                            </span>
+                        )}
                         {election.start_date && (
                             <span className="text-sm text-gray-600">
                                 Start: {new Date(election.start_date).toLocaleString()}
@@ -470,9 +484,11 @@ function VotePage() {
                 )}
 
                 {/* Voting Section */}
-                {started && !hasVoted && isAuthenticated && (
+                {started && !ended && isAuthenticated && canVote() && (
                     <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-                        <h2 className="text-2xl font-bold text-gray-900 mb-4">Cast Your Vote</h2>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                            {hasVoted && election?.settings?.allow_revoting ? 'Change Your Vote' : 'Cast Your Vote'}
+                        </h2>
                         
                         {error && (
                             <div className="rounded-md bg-red-50 p-4 mb-4">
@@ -531,7 +547,7 @@ function VotePage() {
                             disabled={isSubmitting || selectedCandidates.length === 0}
                             className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {isSubmitting ? 'Submitting...' : 'Submit Vote'}
+                            {isSubmitting ? 'Submitting...' : (hasVoted && election?.settings?.allow_revoting ? 'Change Vote' : 'Submit Vote')}
                         </button>
                     </div>
                 )}
@@ -549,8 +565,8 @@ function VotePage() {
                     </div>
                 )}
 
-                {/* Already Voted Message */}
-                {hasVoted && (
+                {/* Already Voted Message (when revoting not allowed) */}
+                {hasVoted && !election?.settings?.allow_revoting && (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
                         <p className="text-green-800 font-medium">You have already voted in this election.</p>
                     </div>
@@ -560,6 +576,9 @@ function VotePage() {
                 {(ended || hasVoted || results) && (
                     <div className="bg-white rounded-lg shadow-md p-6">
                         <h2 className="text-2xl font-bold text-gray-900 mb-4">Results</h2>
+                        <p className="text-sm text-gray-500 mb-4">
+                            Your vote may take a moment to appear in the results due to blockchain processing.
+                        </p>
                         {results ? (
                             <div className="space-y-4">
                                 {election.candidates?.map((candidate) => {
