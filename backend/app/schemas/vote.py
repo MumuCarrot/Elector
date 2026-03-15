@@ -9,14 +9,14 @@ class VoteBase(BaseModel):
 
     election_id: str
     voter_id: str
-    candidate_id: str
+    candidate_id: str | None = None
 
 
 class VoteCreate(BaseModel):
     """Schema for creating a new vote."""
 
     election_id: str
-    candidate_id: str
+    candidate_id: str | None = None
 
 
 class VoteUpdate(BaseModel):
@@ -24,7 +24,7 @@ class VoteUpdate(BaseModel):
 
     election_id: Optional[str] = None
     voter_id: Optional[str] = None
-    candidate_id: Optional[str] = None
+    candidate_id: Optional[str | None] = None
 
 
 class VoteResponse(VoteBase):

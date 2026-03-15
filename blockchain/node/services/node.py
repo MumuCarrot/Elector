@@ -298,6 +298,7 @@ class Node:
         
         return address in self.nodes
 
+
     async def valid_chain(self, session: AsyncSession | None = None, chain: list | None = None) -> bool:
         """Check if a chain is valid."""
         
@@ -328,6 +329,7 @@ class Node:
             ):
                 return False
         return True
+
 
     async def resolve_conflicts(self, session: AsyncSession) -> bool:
         """Resolve conflicts between nodes."""
@@ -601,6 +603,7 @@ class Node:
         """Sync chain from all nodes."""
         
         await self.resolve_conflicts(session)
+
 
     async def _sync_transactions_async(self, session: AsyncSession) -> None:
         """Sync transactions from all nodes."""
