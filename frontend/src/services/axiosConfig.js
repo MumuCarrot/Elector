@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1/';
+const base = (process.env.REACT_APP_API_URL || 'http://localhost:8000').replace(/\/+$/, '');
+const API_BASE_URL = base.endsWith('/api/v1') ? `${base}/` : `${base}/api/v1/`;
 
 export const axiosInstance = axios.create({
     baseURL: API_BASE_URL,

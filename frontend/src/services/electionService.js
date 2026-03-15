@@ -100,17 +100,7 @@ class ElectionService {
     }
 
     async getElectionResults(electionId) {
-        const votes = await this.request(`/votes/election/${electionId}`);
-        
-        const results = {};
-        if (Array.isArray(votes)) {
-            votes.forEach(vote => {
-                const candidateId = vote.candidate_id;
-                results[candidateId] = (results[candidateId] || 0) + 1;
-            });
-        }
-        
-        return results;
+        return this.request(`/votes/election/${electionId}/results`);
     }
 }
 

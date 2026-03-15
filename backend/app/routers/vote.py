@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from app.core.logging_config import get_logger
@@ -30,6 +30,24 @@ async def create_vote(
     return JSONResponse(
         content=vote.model_dump(mode='json'), status_code=201
     )
+
+
+@router.get("/user/{user_id}")
+async def get_votes_by_user(
+    user_id: str,
+    current_user: User = Depends(get_current_user),
+) -> JSONResponse:
+    """
+    Get all votes by a specific user. Returns empty list if no votes.
+    Users can only request their own votes.
+    """
+    
+    if user_id != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Can only access own votes")
+    logger.info(f"Getting votes for user: {user_id}")
+
+    votes = await vote_service.get_votes_by_user(user_id)
+    return JSONResponse(content={"votes": [v.model_dump(mode="json") for v in votes]})
 
 
 @router.get("/election/{election_id}/results")
