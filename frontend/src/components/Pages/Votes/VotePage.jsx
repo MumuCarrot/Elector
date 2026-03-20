@@ -3,6 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import electionService from '../../../services/electionService';
 
+/**
+ * Election detail: voting UI, owner settings editor, results, and delete-before-start.
+ *
+ * @returns {JSX.Element|null} Vote page or null when election is absent after load.
+ */
 function VotePage() {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -23,6 +28,7 @@ function VotePage() {
         candidates: [],
     });
 
+    /** Loads vote tallies for the current election. */
     const fetchResults = useCallback(async () => {
         try {
             const resultsData = await electionService.getElectionResults(id);
@@ -32,6 +38,9 @@ function VotePage() {
         }
     }, [id]);
 
+    /**
+     * Loads election details, syncs the owner settings form, detects prior vote and ended state for results.
+     */
     const fetchElection = useCallback(async () => {
         try {
             setIsLoading(true);
@@ -74,30 +83,46 @@ function VotePage() {
         fetchElection();
     }, [fetchElection]);
 
+    /**
+     * @param {object} electionData - Election from API.
+     * @returns {boolean} True if no start date or current time is past start.
+     */
     const isElectionStarted = (electionData) => {
         if (!electionData.start_date) return true;
         return new Date() >= new Date(electionData.start_date);
     };
 
+    /**
+     * @param {object} electionData - Election from API.
+     * @returns {boolean} True if end date exists and is in the past.
+     */
     const isElectionEnded = (electionData) => {
         if (!electionData.end_date) return false;
         return new Date() >= new Date(electionData.end_date);
     };
 
+    /** @returns {boolean} True if the logged-in user owns this election. */
     const isOwner = () => {
         if (!user || !election) return false;
         return user.id === election.owner_id;
     };
 
+    /** @returns {boolean} Owner may edit only before the election has started. */
     const canEditSettings = () => {
         return isOwner() && !isElectionStarted(election);
     };
 
+    /** @returns {boolean} Whether the UI should allow selecting/submitting votes. */
     const canVote = () => {
         if (!isElectionStarted(election) || isElectionEnded(election)) return false;
         return !hasVoted || election?.settings?.allow_revoting;
     };
 
+    /**
+     * Toggles selection respecting `max_votes` and single-choice replacement rules.
+     *
+     * @param {string} candidateId - Candidate id.
+     */
     const handleCandidateToggle = (candidateId) => {
         if (!canVote()) return;
 
@@ -114,6 +139,11 @@ function VotePage() {
         });
     };
 
+    /**
+     * Requests anonymous token if needed, submits batch vote, then refreshes election and results.
+     *
+     * @returns {Promise<void>}
+     */
     const handleSubmitVote = async () => {
         if (selectedCandidates.length === 0) {
             setError('Please select at least one candidate');
@@ -146,6 +176,10 @@ function VotePage() {
         }
     };
 
+    /**
+     * @param {string} field - Settings form field name.
+     * @param {string} value - New value.
+     */
     const handleSettingsChange = (field, value) => {
         setSettingsForm(prev => ({
             ...prev,
@@ -153,6 +187,11 @@ function VotePage() {
         }));
     };
 
+    /**
+     * @param {number} index - Candidate row index in the settings form.
+     * @param {'name'|'description'} field - Field key.
+     * @param {string} value - New value.
+     */
     const handleCandidateChange = (index, field, value) => {
         setSettingsForm(prev => {
             const newCandidates = [...prev.candidates];
@@ -167,6 +206,7 @@ function VotePage() {
         });
     };
 
+    /** Adds an empty candidate row in the owner settings form. */
     const addCandidate = () => {
         setSettingsForm(prev => ({
             ...prev,
@@ -174,6 +214,11 @@ function VotePage() {
         }));
     };
 
+    /**
+     * Removes a candidate row if more than two remain.
+     *
+     * @param {number} index - Row index.
+     */
     const removeCandidate = (index) => {
         if (settingsForm.candidates.length > 2) {
             setSettingsForm(prev => ({
@@ -183,6 +228,11 @@ function VotePage() {
         }
     };
 
+    /**
+     * Deletes the election after confirmation; only allowed for the owner before start.
+     *
+     * @returns {Promise<void>}
+     */
     const handleDeleteElection = async () => {
         if (!isOwner() || !election) return;
 
@@ -208,6 +258,11 @@ function VotePage() {
         }
     };
 
+    /**
+     * Validates and sends election update from the owner settings panel.
+     *
+     * @returns {Promise<void>}
+     */
     const handleUpdateSettings = async () => {
         const trimmedTitle = (settingsForm.title || '').trim();
 

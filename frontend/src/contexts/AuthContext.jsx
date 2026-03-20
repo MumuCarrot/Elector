@@ -1,14 +1,37 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import authService from '../services/authService';
 
+/**
+ * @typedef {object} AuthContextValue
+ * @property {object|null} user - Current user or null.
+ * @property {boolean} isAuthenticated - Whether a user session is active.
+ * @property {boolean} isLoading - Initial auth check in progress.
+ * @property {(userData: object) => void} login - Stores user and sets authenticated.
+ * @property {() => Promise<void>} logout - Clears server and local session.
+ * @property {(userData: object) => void} updateUser - Merges fields into `user`.
+ */
+
+/** @type {React.Context<AuthContextValue|null>} */
 const AuthContext = createContext(null);
 
+/**
+ * Provides authentication state and actions to the component tree.
+ * On mount, attempts session refresh and loads the current user.
+ *
+ * @param {{ children: React.ReactNode }} props - React children to wrap.
+ * @returns {JSX.Element} Provider element.
+ */
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
+        /**
+         * Restores session via refresh cookie and loads `/auth/me`.
+         *
+         * @returns {Promise<void>}
+         */
         const checkAuth = async () => {
             try {
                 try {
@@ -45,6 +68,12 @@ export function AuthProvider({ children }) {
         checkAuth();
     }, []);
 
+    /**
+     * Persists user in localStorage and marks the session as authenticated.
+     *
+     * @param {Record<string, unknown>} userData - User object from login/register.
+     * @returns {void}
+     */
     const login = (userData) => {
         try {
             localStorage.setItem('user', JSON.stringify(userData));
@@ -56,6 +85,11 @@ export function AuthProvider({ children }) {
         }
     };
 
+    /**
+     * Calls logout API, clears local user state and storage.
+     *
+     * @returns {Promise<void>}
+     */
     const logout = async () => {
         try {
             try {
@@ -63,7 +97,7 @@ export function AuthProvider({ children }) {
             } catch (error) {
                 console.error('Error calling logout API:', error);
             }
-            
+
             localStorage.removeItem('user');
             setUser(null);
             setIsAuthenticated(false);
@@ -75,6 +109,12 @@ export function AuthProvider({ children }) {
         }
     };
 
+    /**
+     * Shallow-merges updates into the current user and persists to localStorage.
+     *
+     * @param {Record<string, unknown>} userData - Partial user fields to merge.
+     * @returns {void}
+     */
     const updateUser = (userData) => {
         try {
             const updatedUser = { ...user, ...userData };
@@ -102,6 +142,12 @@ export function AuthProvider({ children }) {
     );
 }
 
+/**
+ * Hook to read auth state and actions. Must be used under {@link AuthProvider}.
+ *
+ * @returns {AuthContextValue} Context value.
+ * @throws {Error} If used outside `AuthProvider`.
+ */
 export function useAuth() {
     const context = useContext(AuthContext);
     if (!context) {
@@ -109,4 +155,3 @@ export function useAuth() {
     }
     return context;
 }
-

@@ -3,6 +3,11 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import authService from '../../../services/authService';
 
+/**
+ * Registration form with client-side validation; signs the user in on success.
+ *
+ * @returns {JSX.Element} Sign-up page.
+ */
 function SignUpPage() {
     const navigate = useNavigate();
     const { login: setAuth } = useAuth();
@@ -16,6 +21,11 @@ function SignUpPage() {
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
+    /**
+     * Updates controlled fields and clears the error banner.
+     *
+     * @param {React.ChangeEvent<HTMLInputElement>} e - Input change event.
+     */
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({
@@ -25,6 +35,11 @@ function SignUpPage() {
         setError('');
     };
 
+    /**
+     * Validates required fields, password rules, and email format; sets `error` on failure.
+     *
+     * @returns {boolean} True if the form is valid.
+     */
     const validateForm = () => {
         if (!formData.email || !formData.password || !formData.firstName || !formData.lastName) {
             setError('All fields are required');
@@ -50,6 +65,12 @@ function SignUpPage() {
         return true;
     };
 
+    /**
+     * Registers the user and navigates home when the response includes `user`.
+     *
+     * @param {React.FormEvent<HTMLFormElement>} e - Form submit event.
+     * @returns {Promise<void>}
+     */
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');

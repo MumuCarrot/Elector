@@ -3,6 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import electionService from '../../../services/electionService';
 
+/**
+ * Lists active elections from the API and links guests to login before opening a vote.
+ *
+ * @returns {JSX.Element} Votes list page.
+ */
 function VotesPage() {
     const navigate = useNavigate();
     const { isAuthenticated } = useAuth();
@@ -14,6 +19,7 @@ function VotesPage() {
         fetchVotes();
     }, []);
 
+    /** Loads elections and normalizes the response into local state. */
     const fetchVotes = async () => {
         try {
             setIsLoading(true);
@@ -28,6 +34,11 @@ function VotesPage() {
         }
     };
 
+    /**
+     * Navigates to the vote detail route; unauthenticated users go to login.
+     *
+     * @param {string} voteId - Election id.
+     */
     const handleParticipate = (voteId) => {
         if (!isAuthenticated) {
             navigate('/auth/login');
@@ -36,6 +47,13 @@ function VotesPage() {
         navigate(`/votes/${voteId}`);
     };
 
+    /**
+     * Truncates multi-line description for card previews.
+     *
+     * @param {string} text - Raw description.
+     * @param {number} [maxLines=3] - Maximum newline-separated lines to keep.
+     * @returns {string} Truncated text with ellipsis when needed.
+     */
     const truncateDescription = (text, maxLines = 3) => {
         if (!text) return '';
         const lines = text.split('\n');

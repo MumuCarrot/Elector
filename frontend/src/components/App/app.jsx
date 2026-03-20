@@ -9,7 +9,11 @@ import CreateVotePage from '../Pages/Votes/CreateVotePage.jsx';
 import VotePage from '../Pages/Votes/VotePage.jsx';
 import UserProfilePage from '../Pages/Profile/UserProfilePage.jsx';
 
-
+/**
+ * Root application shell: React Router with layout-wrapped routes (home, auth, votes, profile).
+ *
+ * @returns {JSX.Element} Routed app tree.
+ */
 function App() {
     return (
         <BrowserRouter>

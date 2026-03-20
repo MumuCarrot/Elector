@@ -5,6 +5,11 @@ import authService from '../../../services/authService';
 import userProfileService from '../../../services/userProfileService';
 import electionService from '../../../services/electionService';
 
+/**
+ * Authenticated profile: account fields, editable extended profile, and voting history with election details.
+ *
+ * @returns {JSX.Element} Profile page.
+ */
 function UserProfilePage() {
     const navigate = useNavigate();
     const { isAuthenticated } = useAuth();
@@ -30,6 +35,11 @@ function UserProfilePage() {
         fetchUserData();
     }, [isAuthenticated, navigate]);
 
+    /**
+     * Loads current user, profile, and enriches vote rows with election/candidate data.
+     *
+     * @returns {Promise<void>}
+     */
     const fetchUserData = async () => {
         try {
             setIsLoading(true);
@@ -89,6 +99,10 @@ function UserProfilePage() {
         }
     };
 
+    /**
+     * @param {string} field - Profile form key.
+     * @param {string} value - New value.
+     */
     const handleProfileChange = (field, value) => {
         setProfileForm(prev => ({
             ...prev,
@@ -96,6 +110,11 @@ function UserProfilePage() {
         }));
     };
 
+    /**
+     * Creates or updates the extended profile via API.
+     *
+     * @returns {Promise<void>}
+     */
     const handleSaveProfile = async () => {
         setIsSaving(true);
         setError('');
@@ -121,6 +140,7 @@ function UserProfilePage() {
         }
     };
 
+    /** Restores the profile form from saved `profile` and exits edit mode. */
     const handleCancelEdit = () => {
         if (profile) {
             setProfileForm({
@@ -139,6 +159,9 @@ function UserProfilePage() {
         setError('');
     };
 
+    /**
+     * @param {string} electionId - Election to open.
+     */
     const handleVoteClick = (electionId) => {
         navigate(`/votes/${electionId}`);
     };

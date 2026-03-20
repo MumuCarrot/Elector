@@ -2,17 +2,28 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 
+/**
+ * Top navigation: logo, primary links, auth actions, and a responsive mobile menu.
+ *
+ * @returns {JSX.Element} Site header.
+ */
 function Header() {
     const navigate = useNavigate();
     const { isAuthenticated, logout } = useAuth();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+    /** Signs out and navigates home; closes the mobile menu. */
     const handleLogout = () => {
         logout();
         navigate('/');
         setIsMenuOpen(false);
     };
 
+    /**
+     * Programmatic navigation for mobile menu items.
+     *
+     * @param {string} path - React Router path.
+     */
     const handleNavClick = (path) => {
         navigate(path);
         setIsMenuOpen(false);

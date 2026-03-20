@@ -3,6 +3,11 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import authService from '../../../services/authService';
 
+/**
+ * Email/password sign-in form; updates auth context and redirects on success.
+ *
+ * @returns {JSX.Element} Login page.
+ */
 function LoginPage() {
     const navigate = useNavigate();
     const { login: setAuth } = useAuth();
@@ -13,6 +18,11 @@ function LoginPage() {
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
+    /**
+     * Updates controlled fields and clears the error banner.
+     *
+     * @param {React.ChangeEvent<HTMLInputElement>} e - Input change event.
+     */
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({
@@ -22,6 +32,12 @@ function LoginPage() {
         setError('');
     };
 
+    /**
+     * Submits credentials to the API and navigates home when `user` is returned.
+     *
+     * @param {React.FormEvent<HTMLFormElement>} e - Form submit event.
+     * @returns {Promise<void>}
+     */
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');

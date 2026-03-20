@@ -3,6 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import electionService from '../../../services/electionService';
 
+/**
+ * Form to create an election with candidates, optional PDF, and voting settings.
+ * Redirects unauthenticated visitors to login.
+ *
+ * @returns {JSX.Element|null} Create election page or null while redirecting.
+ */
 function CreateVotePage() {
     const navigate = useNavigate();
     const { isAuthenticated } = useAuth();
@@ -28,6 +34,11 @@ function CreateVotePage() {
         }
     }, [isAuthenticated, navigate]);
 
+    /**
+     * Handles top-level and `settings.*` controlled inputs.
+     *
+     * @param {React.ChangeEvent<HTMLInputElement|HTMLTextAreaElement>} e - Change event.
+     */
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
         
@@ -49,6 +60,13 @@ function CreateVotePage() {
         setError('');
     };
 
+    /**
+     * Updates one field on a candidate row.
+     *
+     * @param {number} index - Candidate index.
+     * @param {'name'|'description'} field - Field key.
+     * @param {string} value - New value.
+     */
     const handleCandidateChange = (index, field, value) => {
         setFormData(prev => {
             const newCandidates = [...prev.candidates];
@@ -63,6 +81,7 @@ function CreateVotePage() {
         });
     };
 
+    /** Appends an empty candidate row. */
     const addCandidate = () => {
         setFormData(prev => ({
             ...prev,
@@ -70,6 +89,11 @@ function CreateVotePage() {
         }));
     };
 
+    /**
+     * Removes a candidate if more than two remain.
+     *
+     * @param {number} index - Row index to remove.
+     */
     const removeCandidate = (index) => {
         if (formData.candidates.length > 2) {
             setFormData(prev => ({
@@ -79,6 +103,11 @@ function CreateVotePage() {
         }
     };
 
+    /**
+     * Validates PDF type/size and stores the selected file in state.
+     *
+     * @param {React.ChangeEvent<HTMLInputElement>} e - File input change.
+     */
     const handleFileChange = (e) => {
         const file = e.target.files[0];
         if (file) {
@@ -95,6 +124,11 @@ function CreateVotePage() {
         }
     };
 
+    /**
+     * Validates title, candidate count/names, date order, and max votes.
+     *
+     * @returns {boolean} True if valid.
+     */
     const validateForm = () => {
         if (!formData.title.trim()) {
             setError('Title is required');
@@ -122,6 +156,12 @@ function CreateVotePage() {
         return true;
     };
 
+    /**
+     * Builds the API payload, creates the election, and navigates to its detail page.
+     *
+     * @param {React.FormEvent<HTMLFormElement>} e - Form submit event.
+     * @returns {Promise<void>}
+     */
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');

@@ -1,97 +1,73 @@
-# Vote FE
+# Elector — Frontend (vote-fe)
 
-This project is a React-based front-end for an online voting platform. It uses Create React App, React Router, Tailwind CSS, and Axios to communicate with a backend API.
+Single-page application for **Elector**, a voting platform where users can register, sign in, browse elections, create polls (with candidates and optional settings), cast votes, and view results. The UI is built with **React**, **React Router**, **Tailwind CSS**, and talks to a backend API over HTTP (session cookies / refresh flow).
 
-## Prerequisites
+## Requirements
 
-- **Node.js**: recommended LTS version (for example 18 or 20)
-- **npm**: comes together with Node.js
+- **Node.js** (LTS recommended, e.g. 18+)
+- **npm** (comes with Node)
 
 ## Install dependencies
 
-All required libraries are defined in `package.json`. To install them, run:
+From this directory (`frontend/`):
 
 ```bash
 npm install
 ```
 
-## Development server
+## Configuration
 
-To start the development server:
+The API base URL is read from the environment. Copy the example file and adjust if your backend is not on the default host:
+
+```bash
+copy .env.example .env
+```
+
+On macOS/Linux:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set `REACT_APP_API_URL` to your backend origin (e.g. `http://localhost:8000`). If unset, the app falls back to `http://localhost:8000`.
+
+## Run the development server
 
 ```bash
 npm start
 ```
 
-This will:
-- start the React development server on `http://localhost:3000`
-- watch for file changes and automatically reload the page
+Opens the app in the browser (by default [http://localhost:3000](http://localhost:3000)) with hot reload.
 
-## Environment variables
-
-Create a `.env` by example file `.env.example`.
-
-## Build for production
-
-To create an optimized production build:
+## Production build
 
 ```bash
 npm run build
 ```
 
-The build output will be placed in the `build` directory and can be served by any static file server or integrated with your backend.
+Outputs an optimized build under `build/`, suitable for static hosting; it must still be able to reach the configured API (CORS and cookies as required by your backend).
 
-## Run with Docker
+## Run tests
 
-You can build and run this React application inside a Docker container using the provided `Dockerfile`.
-
-### Build Docker image
-
-From the project root (where `Dockerfile` is located), run:
-
-```bash
-docker build -t vote-fe .
-```
-
-### Run Docker container
-
-To start a container and expose the app on `http://localhost:3000`:
-
-```bash
-docker run -p 3000:80 --name vote-fe-container vote-fe
-```
-
-### Stop and remove container
-
-To stop and remove the running container:
-
-```bash
-docker stop vote-fe-container
-docker rm vote-fe-container
-```
-
-## Running tests
-
-The project uses Jest and React Testing Library (already configured by Create React App) together with the tests added in `src/components`, `src/contexts`, and `src/services`.
-
-To run tests in watch mode:
+Interactive watch mode (default):
 
 ```bash
 npm test
 ```
 
-To run tests once in CI mode (for example in CI pipelines or local one-time run), you can use:
+Single run (e.g. for CI or a one-off check):
 
 ```bash
-CI=true npm test
+npm test -- --watchAll=false
 ```
 
-## Scripts summary
+Tests use **Jest** and **React Testing Library** via Create React App (`react-scripts`).
 
-From `package.json`:
+## Project scripts (summary)
 
-- `npm start` – start the development server
-- `npm run build` – build the app for production
-- `npm test` – run tests (Jest + React Testing Library)
-
-
+| Command              | Description                    |
+| -------------------- | ------------------------------ |
+| `npm start`          | Dev server                     |
+| `npm run build`      | Production build               |
+| `npm test`           | Unit/integration tests (Jest)  |
+| `npm run eject`      | Eject CRA config (irreversible) |

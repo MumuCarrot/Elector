@@ -2,6 +2,11 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 
+/**
+ * Marketing-style landing page with hero, feature sections, and CTAs based on auth state.
+ *
+ * @returns {JSX.Element} Home page.
+ */
 function HomePage() {
     const navigate = useNavigate();
     const { isAuthenticated } = useAuth();

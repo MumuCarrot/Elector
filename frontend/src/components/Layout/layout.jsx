@@ -2,6 +2,11 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import Header from './Header/header.jsx';
 
+/**
+ * Main chrome: site header and an `<Outlet />` for nested routes.
+ *
+ * @returns {JSX.Element} Layout fragment.
+ */
 function Layout() {
     return (
         <>
