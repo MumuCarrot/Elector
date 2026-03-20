@@ -25,8 +25,15 @@ logger = logging.getLogger(__name__)
 
 
 def _model_to_schema_block(block: BlockModel) -> BlockSchema:
-    """Convert DB Block model to Pydantic Block schema."""
-    
+    """Maps a SQLAlchemy ``Block`` row (with transactions) to API ``Block`` schema.
+
+    Args:
+        block: Loaded ORM block including ``transactions``.
+
+    Returns:
+        BlockSchema: Pydantic block with Unix ``timestamp`` for JSON compatibility.
+
+    """
     tx_schemas = [
         TransactionSchema(
             id=t.id,
@@ -50,7 +57,33 @@ def _model_to_schema_block(block: BlockModel) -> BlockSchema:
 
 
 class Node:
+    """In-process blockchain node: peers, mempool, mining task, and optional request session.
+
+    Attributes:
+        host: Advertised bind host (may be ``0.0.0.0``).
+        port: TCP port of this API server.
+        nodes: Known peer addresses ``host:port``.
+        mempool: Pending transactions not yet in a block.
+        session: Set per-request by FastAPI dependencies when handling HTTP calls.
+        _initializing: True until ``initialize`` finishes neighbor/tx sync.
+        _mining_task: Background task running ``_mining_loop_forever``.
+        _mining_interval_seconds: Sleep between mining attempts when idle or after errors.
+
+    """
+
     def __init__(self, host: str, port: int, is_copy: bool = False):
+        """Creates a node and optionally registers the configured main node as a peer.
+
+        When ``is_copy`` is False and this instance is not the configured main port,
+        the main node address is added to ``nodes``. The app lifespan typically uses
+        ``is_copy=True`` to avoid duplicate registration side effects in ``__init__``.
+
+        Args:
+            host: Hostname or IP for this node.
+            port: Listen port for this node.
+            is_copy: If True, skips automatic main-node registration in ``__init__``.
+
+        """
         self.host = host
         self.port = port
         self.nodes = set()
@@ -67,8 +100,11 @@ class Node:
                 logger.info("Running as main node on port %s", self.port)
 
     async def initialize(self) -> None:
-        """Async init: genesis block, sync, start mining. Call from app lifespan (main event loop)."""
+        """Ensures genesis exists, syncs chain/transactions/peers, then starts mining.
 
+        Should be called once from the FastAPI lifespan on the process main event loop.
+
+        """
         # Register main node if this is not the main node (skipped when is_copy=True in __init__)
         if self.port != settings.app.MAIN_NODE_PORT:
             main_address = f"{settings.app.MAIN_NODE_HOST}:{settings.app.MAIN_NODE_PORT}"
@@ -83,7 +119,11 @@ class Node:
         self._mining_task = asyncio.create_task(self._mining_loop_forever())
 
     async def _mining_loop_forever(self) -> None:
-        """Mining loop running in main event loop - avoids asyncpg cross-loop issues."""
+        """Repeatedly runs one mining cycle in a fresh DB session until cancelled.
+
+        Runs on the same asyncio loop as FastAPI to avoid asyncpg cross-loop issues.
+
+        """
         while True:
             try:
                 async with async_session_maker() as session:
@@ -96,8 +136,12 @@ class Node:
 
 
     async def _async_init(self, session: AsyncSession) -> None:
-        """Initialize genesis block and sync from network."""
+        """Creates genesis if DB is empty, then pulls chain, mempool txs, and peer list.
 
+        Args:
+            session: Database session for initialization queries.
+
+        """
         # initialize genesis block
         block_repo = BlockRepository(session)
         count = await block_repo.count()
@@ -125,8 +169,15 @@ class Node:
 
 
     async def _get_chain(self, session: AsyncSession) -> list[BlockModel]:
-        """Fetch chain from DB ordered by index."""
+        """Loads all blocks from storage ordered by ``index`` ascending.
 
+        Args:
+            session: Active async session.
+
+        Returns:
+            list[BlockModel]: Full chain as ORM objects.
+
+        """
         block_repo = BlockRepository(session)
         return await block_repo.get_chain_ordered()
 
@@ -134,8 +185,16 @@ class Node:
     async def _get_confirmed_tx_ids(
         self, session: AsyncSession, tx_ids: list[str]
     ) -> set[str]:
-        """Return set of tx ids linked to any block (query via Block.transactions)."""
+        """Returns which transaction ids already appear in any mined block.
 
+        Args:
+            session: Database session.
+            tx_ids: Candidate ids (typically mempool batch).
+
+        Returns:
+            set[str]: Subset of ``tx_ids`` that are confirmed on-chain.
+
+        """
         if not tx_ids:
             return set()
             
@@ -145,8 +204,13 @@ class Node:
     async def add_to_mempool(
         self, session: AsyncSession, transactions: list[TransactionSchema]
     ) -> None:
-        """Add transactions to mempool, skipping those already confirmed in chain."""
+        """Queues new votes in the mempool, ignoring ids already present in blocks.
 
+        Args:
+            session: Database session for confirmation lookup.
+            transactions: Incoming vote payloads.
+
+        """
         if not transactions:
             return
             
@@ -157,8 +221,15 @@ class Node:
 
 
     async def _get_chain_schemas(self, session: AsyncSession) -> list[BlockSchema]:
-        """Fetch chain as Pydantic schemas for API/gossip."""
+        """Returns the chain as Pydantic models for JSON and validation.
 
+        Args:
+            session: Database session.
+
+        Returns:
+            list[BlockSchema]: Serializable chain.
+
+        """
         blocks = await self._get_chain(session)
         return [_model_to_schema_block(b) for b in blocks]
 
@@ -171,13 +242,37 @@ class Node:
 
 
     async def get_chain(self, session: AsyncSession) -> list[BlockSchema]:
-        """Get chain as Pydantic schemas (use in async routers)."""
+        """Public accessor for the chain as ``BlockSchema`` list (HTTP handlers).
 
+        Args:
+            session: Database session.
+
+        Returns:
+            list[BlockSchema]: Full chain.
+
+        """
         return await self._get_chain_schemas(session)
 
 
     @staticmethod
     def valid_nonce(index, transactions, last_nonce, previous_hash, timestamp, nonce):
+        """Checks proof-of-work: SHA256 digest must start with ``PROOF_OF_WORK_DIFFICULTY``.
+
+        The preimage includes block index, serialized transactions, parent's nonce,
+        previous hash, timestamp, and this block's nonce.
+
+        Args:
+            index: Block height.
+            transactions: List of tx objects or dicts.
+            last_nonce: Previous block's nonce.
+            previous_hash: Parent hash string.
+            timestamp: Block time (numeric or stringifiable).
+            nonce: Candidate nonce.
+
+        Returns:
+            bool: True if the hash prefix matches the configured difficulty.
+
+        """
         if not transactions:
             transactions_dict = []
         else:
@@ -195,6 +290,15 @@ class Node:
 
     @staticmethod
     def _tx_to_dict(tx) -> dict:
+        """Normalizes a transaction-like object to a JSON-friendly dict.
+
+        Args:
+            tx: Pydantic model, dict-like, or ORM object with vote fields.
+
+        Returns:
+            dict: Transaction fields suitable for hashing.
+
+        """
         if hasattr(tx, "model_dump"):
             return tx.model_dump(mode="json")
         if hasattr(tx, "dict"):
@@ -217,8 +321,19 @@ class Node:
         nonce: int,
         previous_hash: str,
     ) -> str:
-        """Compute block hash from components. Reused by hash() and new_block()."""
-        
+        """Computes SHA256 hex digest over canonical JSON of block fields.
+
+        Args:
+            index: Block index.
+            timestamp: ``datetime`` or epoch-like value.
+            transactions: Transactions to include in the preimage.
+            nonce: Block nonce.
+            previous_hash: Parent block hash.
+
+        Returns:
+            str: 64-character hex digest.
+
+        """
         txs = [cls._tx_to_dict(tx) for tx in transactions]
         ts_str = (
             timestamp.isoformat()
@@ -252,8 +367,20 @@ class Node:
         nonce: int,
         previous_hash: str | None = None,
     ) -> BlockModel:
-        """Add block to chain and persist to DB."""
+        """Persists a new block and its transactions, linking rows in the database.
 
+        Args:
+            session: Database session.
+            index: New block height.
+            timestamp: Unix time or ``datetime``.
+            transactions: Votes to store under this block.
+            nonce: Proof-of-work nonce.
+            previous_hash: Explicit parent hash, or computed from current tip.
+
+        Returns:
+            BlockModel: Saved block ORM instance.
+
+        """
         block_repo = BlockRepository(session)
         transaction_repo = TransactionRepository(session)
         last = await self.last_block(session)
@@ -288,20 +415,43 @@ class Node:
 
 
     def register_node(self, address: str) -> None:
-        """Register a new node to the network."""
+        """Adds a peer ``host:port`` string to the in-memory peer set.
 
+        Args:
+            address: Peer URL fragment without scheme (e.g. ``127.0.0.1:5001``).
+
+        """
         self.nodes.add(address)
 
 
     def is_registered(self, address: str) -> bool:
-        """Check if a node is registered."""
-        
+        """Returns whether ``address`` is in the local peer set.
+
+        Args:
+            address: Peer ``host:port`` string.
+
+        Returns:
+            bool: True if registered.
+
+        """
+
         return address in self.nodes
 
 
     async def valid_chain(self, session: AsyncSession | None = None, chain: list | None = None) -> bool:
-        """Check if a chain is valid."""
-        
+        """Validates hash linkage and proof-of-work for each block after the first.
+
+        Args:
+            session: Required when ``chain`` is None (loads from DB).
+            chain: In-memory chain as schemas, dicts, or ORM objects.
+
+        Returns:
+            bool: False if empty or any check fails.
+
+        Raises:
+            ValueError: If ``chain`` is None and ``session`` is None.
+
+        """
         if chain is None:
             if session is None:
                 raise ValueError("Session is required if chain is not provided")
@@ -332,8 +482,15 @@ class Node:
 
 
     async def resolve_conflicts(self, session: AsyncSession) -> bool:
-        """Resolve conflicts between nodes."""
-        
+        """Replaces the local chain if a peer exposes a longer valid chain.
+
+        Args:
+            session: Database session for rewrite and commits.
+
+        Returns:
+            bool: True if the stored chain was replaced.
+
+        """
         connection_host = "127.0.0.1" if self.host == "0.0.0.0" else self.host
         own_address = f"{connection_host}:{self.port}"
         block_repo = BlockRepository(session)
@@ -411,8 +568,14 @@ class Node:
     async def replace_chain_with(
         self, session: AsyncSession, chain_schemas: list[BlockSchema], tx_ids: list[str]
     ) -> None:
-        """Replace entire chain in DB with given chain (e.g. from gossip)."""
+        """Deletes local blocks and persists ``chain_schemas``; prunes mempool by ``tx_ids``.
 
+        Args:
+            session: Database session.
+            chain_schemas: Validated peer chain.
+            tx_ids: All transaction ids contained in that chain.
+
+        """
         block_repo = BlockRepository(session)
         transaction_repo = TransactionRepository(session)
         existing = await block_repo.get_chain_ordered()
@@ -514,6 +677,12 @@ class Node:
 
 
     async def _gossip_chain_async(self, session: AsyncSession) -> None:
+        """POSTs the full chain to each peer; on 400, may trigger conflict resolution.
+
+        Args:
+            session: Session used if a longer remote chain must be applied.
+
+        """
         chain = await self._get_chain_schemas(session)
         tx_ids = [tx.id for b in chain for tx in b.transactions]
         
@@ -539,8 +708,12 @@ class Node:
 
 
     async def gossip_transactions(self, session: AsyncSession) -> None:
-        """Gossip transactions to all nodes."""
+        """Pushes the current mempool to peers and merges any returned superset.
 
+        Args:
+            session: Database session for merging received txs into mempool.
+
+        """
         for node in self.nodes:
             try:
                 transactions = self.mempool.get_all()
@@ -560,14 +733,18 @@ class Node:
 
 
     async def gossip_chain(self, session: AsyncSession) -> None:
-        """Gossip chain to all nodes."""
+        """Public wrapper that gossips the current chain to all peers."""
 
         await self._gossip_chain_async(session)
 
 
     async def gossip_neighbors(self, ignore_nodes: List[str] | None = None) -> None:
-        """Gossip neighbors to all nodes."""
+        """Exchanges full peer lists with neighbors to discover new addresses.
 
+        Args:
+            ignore_nodes: Addresses not to re-add (plus self is always ignored).
+
+        """
         if self._initializing:
             return
 
@@ -600,14 +777,14 @@ class Node:
 
 
     async def sync_chain(self, session: AsyncSession) -> None:
-        """Sync chain from all nodes."""
-        
+        """Runs longest-chain resolution against peers (see ``resolve_conflicts``)."""
+
         await self.resolve_conflicts(session)
 
 
     async def _sync_transactions_async(self, session: AsyncSession) -> None:
-        """Sync transactions from all nodes."""
-        
+        """Pulls each peer's mempool via HTTP and merges into the local mempool."""
+
         for node in self.nodes:
             try:
                 response = await asyncio.to_thread(
@@ -623,8 +800,8 @@ class Node:
 
 
     async def _sync_neighbors_async(self) -> None:
-        """Sync neighbors from all nodes."""
-        
+        """Fetches ``/blockchain/nodes`` from peers to expand the local peer set."""
+
         connection_host = "127.0.0.1" if self.host == "0.0.0.0" else self.host
         own_address = f"{connection_host}:{self.port}"
         for node in self.nodes:
@@ -641,12 +818,24 @@ class Node:
 
 
     def sync_neighbors(self) -> None:
+        """Blocking helper: runs ``_sync_neighbors_async`` in a new event loop.
+
+        Prefer the async API from FastAPI contexts; this exists for synchronous callers.
+
+        """
         asyncio.run(self._sync_neighbors_async())
 
 
     async def undo_block(self, session: AsyncSession) -> BlockModel | None:
-        """Undo last block."""
-        
+        """Removes the chain tip and re-queues its transactions in the mempool.
+
+        Args:
+            session: Database session.
+
+        Returns:
+            BlockModel | None: The removed block, or None if chain was empty.
+
+        """
         last = await self.last_block(session)
         if not last:
             return None
@@ -669,7 +858,11 @@ class Node:
 
 
     def copy_chain(self) -> "Node":
-        """Copy chain from another node."""
-        
+        """Factory for a lightweight sibling node sharing host/port without main-node hooks.
+
+        Returns:
+            Node: New instance with ``is_copy=True``.
+
+        """
         new_node = Node(self.host, self.port, is_copy=True)
         return new_node

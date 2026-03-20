@@ -10,7 +10,20 @@ from node.utils.id_mixin import IdMixin
 if TYPE_CHECKING:
     from node.models.block import Block
 
+
 class Transaction(IdMixin, Base):
+    """A single vote linking election, voter, and candidate to a block.
+
+    Attributes:
+        block_id: Foreign key to the containing block.
+        election_id: Election identifier from the application domain.
+        voter_id: Voter (user) identifier.
+        candidate_id: Chosen candidate identifier.
+        created_at: Optional creation timestamp.
+        block: Parent block relationship.
+
+    """
+
     __tablename__ = "transactions"
     block_id: Mapped[str] = mapped_column(
         String(36),

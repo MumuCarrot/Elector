@@ -10,7 +10,15 @@ router = APIRouter(tags=["api_addons"])
 
 
 def _tx_to_dict(tx) -> dict:
-    """Convert Transaction model to JSON-serializable dict."""
+    """Serializes a SQLAlchemy ``Transaction`` row for JSON.
+
+    Args:
+        tx: ORM transaction instance.
+
+    Returns:
+        dict: Id, election, voter, candidate, and ISO ``created_at``.
+
+    """
     return {
         "id": tx.id,
         "election_id": tx.election_id,
@@ -25,12 +33,19 @@ async def get_votes_by_election(
     election_id: str,
     session: AsyncSession = Depends(get_session),
 ) -> JSONResponse:
-    """Get all votes for an election. Only the latest vote per voter is returned (repeated votes overwrite previous)."""
+    """Returns latest vote per voter for an election (by ``created_at``).
 
+    Args:
+        election_id: Election identifier.
+        session: DB session.
+
+    Returns:
+        JSONResponse: ``votes`` and ``count``.
+
+    """
     repo = TransactionRepository(session)
     transactions = await repo.get_by_election_id(election_id)
 
-    # Keep only the latest vote per voter_id (by created_at)
     voter_to_latest: dict[str, Transaction] = {}
     for tx in transactions:
         prev = voter_to_latest.get(tx.voter_id)
@@ -49,8 +64,16 @@ async def get_votes_by_user(
     user_id: str,
     session: AsyncSession = Depends(get_session),
 ) -> JSONResponse:
-    """Get all votes by a user (DB query by voter_id)."""
+    """Returns all on-chain votes for a voter id.
 
+    Args:
+        user_id: Voter (user) identifier.
+        session: DB session.
+
+    Returns:
+        JSONResponse: ``votes`` and ``count``.
+
+    """
     repo = TransactionRepository(session)
     transactions = await repo.get_by_voter_id(user_id)
     votes = [_tx_to_dict(tx) for tx in transactions]
@@ -63,8 +86,17 @@ async def get_user_vote_for_election(
     user_id: str,
     session: AsyncSession = Depends(get_session),
 ) -> JSONResponse:
-    """Get user's vote for a specific election (DB query by election_id + voter_id)."""
-    
+    """Returns one vote for a user in an election, or 404.
+
+    Args:
+        election_id: Election identifier.
+        user_id: Voter identifier.
+        session: DB session.
+
+    Returns:
+        JSONResponse: Vote dict or 404 JSON error.
+
+    """
     repo = TransactionRepository(session)
     tx = await repo.get_by_election_and_voter(election_id, user_id)
     if not tx:

@@ -10,7 +10,21 @@ from node.utils.id_mixin import IdMixin
 if TYPE_CHECKING:
     from node.models.transaction import Transaction
 
+
 class Block(IdMixin, Base):
+    """Persisted block: index, hash links, nonce, and related transactions.
+
+    Attributes:
+        index: Position in the chain (unique, ordered).
+        timestamp: Block time.
+        nonce: Proof-of-work nonce.
+        previous_hash: Hash of the parent block.
+        hash: This block's content hash.
+        created_at: Optional record creation time.
+        transactions: Votes/transactions included in this block.
+
+    """
+
     __tablename__ = "blockchain_blocks"
     index: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime, nullable=False)

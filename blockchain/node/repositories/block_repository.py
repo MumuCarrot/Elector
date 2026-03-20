@@ -8,12 +8,21 @@ from node.repositories.base_repository import BaseRepository
 
 
 class BlockRepository(BaseRepository):
+    """Repository for ``Block`` with chain ordering and transaction joins."""
+
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(model=Block, session=session, log_data_name="Block")
 
     async def get_transaction_ids_in_chain(self, tx_ids: list[str]) -> set[str]:
-        """Return tx ids that are linked to any block (exist in chain)."""
-        
+        """Returns IDs that already appear in any block's transactions.
+
+        Args:
+            tx_ids: Candidate transaction UUID strings.
+
+        Returns:
+            set[str]: Subset of ``tx_ids`` present on the chain.
+
+        """
         if not tx_ids:
             return set()
         result = await self.session.execute(
@@ -22,6 +31,12 @@ class BlockRepository(BaseRepository):
         return set(result.scalars().all())
 
     async def get_chain_ordered(self) -> list[Block]:
+        """Loads the full chain ordered by ``index`` ascending with transactions eager-loaded.
+
+        Returns:
+            list[Block]: All blocks in chain order.
+
+        """
         result = await self.session.execute(
             select(Block)
             .options(selectinload(Block.transactions))
@@ -30,7 +45,12 @@ class BlockRepository(BaseRepository):
         return list(result.scalars().all())
 
     async def get_last_block(self) -> Block | None:
-        """Get block with highest index (last in chain)."""
+        """Returns the block with the greatest ``index``.
+
+        Returns:
+            Block | None: Tip of the chain, or None if empty.
+
+        """
         result = await self.session.execute(
             select(Block)
             .options(selectinload(Block.transactions))

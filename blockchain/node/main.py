@@ -18,8 +18,18 @@ from node.services.node import Node
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Create Node at startup and run mining in main event loop (avoids asyncpg issues)."""
+    """Creates the blockchain Node at startup and runs mining on the main event loop.
 
+    Storing the node on ``app.state`` avoids asyncpg session/loop issues from background
+    threads. On shutdown, cancels the mining task if it is still running.
+
+    Args:
+        app: FastAPI application instance.
+
+    Yields:
+        None: Control returns to the framework after startup hooks complete.
+
+    """
     actual_host = os.environ.get("NODE_ACTUAL_HOST", settings.app.APP_HOST)
     actual_port = int(os.environ.get("NODE_ACTUAL_PORT", settings.app.APP_PORT))
     node = Node(host=actual_host, port=actual_port, is_copy=True)

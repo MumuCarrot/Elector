@@ -15,6 +15,16 @@ APP = "node"
 
 
 def is_port_free(port, host="127.0.0.1"):
+    """Checks whether ``host:port`` accepts a new TCP connection (port not in use).
+
+    Args:
+        port: TCP port number.
+        host: Host to probe; defaults to loopback.
+
+    Returns:
+        bool: True if the port appears free for bind/listen on ``0.0.0.0``.
+
+    """
     check_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     check_socket.settimeout(0.1)
     try:
@@ -36,7 +46,22 @@ def is_port_free(port, host="127.0.0.1"):
         except (OSError, socket.error):
             return False
 
-def find_port(start=PORT, end=PORT+100, host="127.0.0.1"):
+
+def find_port(start=PORT, end=PORT + 100, host="127.0.0.1"):
+    """Returns the first free port in ``[start, end)``.
+
+    Args:
+        start: First port to try (inclusive).
+        end: One past the last port to try (exclusive).
+        host: Host used for ``is_port_free`` probes.
+
+    Returns:
+        int: A free port number.
+
+    Raises:
+        RuntimeError: If no free port exists in the range.
+
+    """
     for port in range(start, end):
         if is_port_free(port, host):
             return port
@@ -46,16 +71,17 @@ def find_port(start=PORT, end=PORT+100, host="127.0.0.1"):
 if __name__ == "__main__":
     import os
     import time
+
     time.sleep(0.1)
-    
+
     actual_port = find_port(start=PORT, host="127.0.0.1")
 
     if not is_port_free(actual_port, "127.0.0.1"):
         actual_port = find_port(start=actual_port + 1, host="127.0.0.1")
-    
+
     os.environ["NODE_ACTUAL_HOST"] = HOST
     os.environ["NODE_ACTUAL_PORT"] = str(actual_port)
-    
+
     hello = f'''
             ===========================
             This app is running node application.
@@ -65,7 +91,7 @@ if __name__ == "__main__":
             To stop the node, simply terminate the application.
             ===========================
             '''
-    print(hello, end='\n\n')
+    print(hello, end="\n\n")
 
     uvicorn.run(
         "node.main:app",

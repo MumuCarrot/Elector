@@ -1,5 +1,3 @@
-"""Logging configuration for blockchain node."""
-
 import logging
 import sys
 
@@ -8,7 +6,13 @@ LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
 def setup_logging(level: str = "INFO") -> None:
-    """Configure logging for the application."""
+    """Configures root logging to stdout and quiets noisy third-party loggers.
+
+    Args:
+        level: Log level name (e.g. ``INFO``, ``DEBUG``). Invalid values fall back to
+            ``INFO``.
+
+    """
     log_level = getattr(logging, level.upper(), logging.INFO)
     logging.basicConfig(
         level=log_level,
@@ -16,7 +20,6 @@ def setup_logging(level: str = "INFO") -> None:
         datefmt=LOG_DATE_FORMAT,
         stream=sys.stdout,
     )
-    # Reduce noise from third-party loggers
     logging.getLogger("uvicorn").setLevel(logging.WARNING)
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("sqlalchemy").setLevel(logging.WARNING)

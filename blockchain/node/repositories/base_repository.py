@@ -8,8 +8,13 @@ from node.db.database import Base
 
 
 class BaseRepository:
-    """
-    Base repository class for common database operations.
+    """CRUD-style helpers around a single SQLAlchemy model and ``AsyncSession``.
+
+    Attributes:
+        model: Declarative model class.
+        session: Async session used for all operations.
+        log_data_name: Human-readable name for error messages.
+
     """
 
     def __init__(
@@ -22,10 +27,20 @@ class BaseRepository:
         self.session = session
         self.log_data_name = log_data_name
 
-    async def create(
-        self,
-        data: Any,
-    ) -> Any:
+    async def create(self, data: Any) -> Any:
+        """Inserts one row and refreshes the instance.
+
+        Args:
+            data: ORM instance to persist.
+
+        Returns:
+            The same instance after commit and refresh.
+
+        Raises:
+            ValueError: On unique/integrity violations (after rollback).
+            Exception: Other errors propagate after rollback.
+
+        """
         try:
             self.session.add(data)
 
@@ -43,6 +58,19 @@ class BaseRepository:
             raise
 
     async def create_many(self, data: list[Any]) -> list[Any]:
+        """Inserts multiple rows in one transaction.
+
+        Args:
+            data: List of ORM instances.
+
+        Returns:
+            The same list after commit (refresh behavior depends on SQLAlchemy).
+
+        Raises:
+            ValueError: On integrity errors.
+            Exception: Other errors after rollback.
+
+        """
         try:
             self.session.add_all(data)
 
@@ -50,7 +78,7 @@ class BaseRepository:
             await self.session.refresh(data)
 
             return data
-            
+
         except IntegrityError as e:
             await self.session.rollback()
             raise ValueError(str(e))
@@ -59,11 +87,20 @@ class BaseRepository:
             await self.session.rollback()
             raise
 
-    async def update(
-        self,
-        data: Any,
-        condition: Any = None,
-    ) -> Any:
+    async def update(self, data: Any, condition: Any = None) -> Any:
+        """Updates a row by tracked instance or by ``condition`` + payload.
+
+        Args:
+            data: Tracked ORM instance, dict of fields, or ORM instance with values.
+            condition: SQLAlchemy filter when ``data`` is not a tracked instance.
+
+        Returns:
+            Updated ORM instance.
+
+        Raises:
+            ValueError: If condition is missing, row not found, or instance not tracked.
+
+        """
         try:
             if isinstance(data, self.model) and condition is None:
                 try:
@@ -115,6 +152,15 @@ class BaseRepository:
             raise
 
     async def delete(self, condition: Any = False) -> bool:
+        """Deletes the first row matching ``condition``.
+
+        Args:
+            condition: SQLAlchemy boolean expression.
+
+        Returns:
+            bool: True if a row was deleted.
+
+        """
         try:
             result = await self.session.execute(select(self.model).where(condition))
             data = result.scalar_one_or_none()
@@ -132,6 +178,15 @@ class BaseRepository:
             raise
 
     async def delete_many(self, condition: Any = False) -> list[Any]:
+        """Deletes all rows matching ``condition``.
+
+        Args:
+            condition: SQLAlchemy boolean expression.
+
+        Returns:
+            list: Deleted instances (empty if none matched).
+
+        """
         try:
             result = await self.session.execute(select(self.model).where(condition))
             data = result.scalars().all()
@@ -150,11 +205,17 @@ class BaseRepository:
             await self.session.rollback()
             raise
 
-    async def read_one(
-        self,
-        condition: Any = False,
-        options: Any = None,
-    ) -> Any:
+    async def read_one(self, condition: Any = False, options: Any = None) -> Any:
+        """Returns one row or None.
+
+        Args:
+            condition: SQLAlchemy filter.
+            options: Optional list of loader options for ``select``.
+
+        Returns:
+            Model instance or None.
+
+        """
         try:
             result = await self.session.execute(
                 select(self.model).where(condition).options(*(options or []))
@@ -169,10 +230,16 @@ class BaseRepository:
         except Exception as e:
             raise
 
-    async def read_many(
-        self,
-        condition: Any = False,
-    ) -> Any:
+    async def read_many(self, condition: Any = False) -> Any:
+        """Returns all rows matching ``condition``.
+
+        Args:
+            condition: SQLAlchemy filter.
+
+        Returns:
+            list: Matching rows, or empty list.
+
+        """
         try:
             result = await self.session.execute(select(self.model).where(condition))
             data = result.scalars().all()
@@ -191,6 +258,17 @@ class BaseRepository:
         page: int = 1,
         page_size: int = 0,
     ) -> Any:
+        """Returns a page of rows using offset/limit.
+
+        Args:
+            condition: SQLAlchemy filter; default matches all.
+            page: 1-based page index.
+            page_size: Page size (0 yields offset logic with limit 0).
+
+        Returns:
+            list: Rows for the page.
+
+        """
         try:
             offset = (page - 1) * page_size
             result = await self.session.execute(
@@ -207,18 +285,36 @@ class BaseRepository:
             raise
 
     async def contains(self, condition: Any = False) -> bool:
+        """Returns whether any row matches ``condition``."""
+
         try:
             return await self.read_one(condition=condition) is not None
         except Exception as e:
             raise
 
     async def contains_many(self, condition: Any = False) -> list[Any]:
+        """Legacy helper: compares ``read_many`` result to None (empty list is still not None).
+
+        Returns:
+            bool: True when ``read_many`` does not return None.
+
+        """
+
         try:
             return await self.read_many(condition=condition) is not None
         except Exception as e:
             raise
 
     async def count(self, condition: Any = True) -> int:
+        """Counts rows matching ``condition``.
+
+        Args:
+            condition: SQLAlchemy filter; default counts all rows.
+
+        Returns:
+            int: Row count.
+
+        """
         try:
             result = await self.session.execute(
                 select(func.count()).select_from(self.model).where(condition)
@@ -226,5 +322,3 @@ class BaseRepository:
             return result.scalar() or 0
         except Exception as e:
             raise
-
-            

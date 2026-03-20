@@ -17,7 +17,6 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
-# Use sync URL for alembic (psycopg2)
 sync_url = settings.database_settings.DATABASE_URL.replace(
     "postgresql+asyncpg://", "postgresql+psycopg2://"
 )
@@ -25,7 +24,11 @@ config.set_main_option("sqlalchemy.url", sync_url)
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode."""
+    """Runs migrations in offline mode using a URL only (no live connection).
+
+    Configures Alembic context with ``literal_binds`` for SQL script generation.
+
+    """
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -39,7 +42,8 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode."""
+    """Runs migrations in online mode against a live sync engine connection."""
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -47,9 +51,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()
