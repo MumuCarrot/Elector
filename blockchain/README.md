@@ -34,13 +34,15 @@ pip install -r requirements.txt
 
 Settings are read from **environment variables** and from an optional **`node/.env`** file (paths are relative to the current working directory when you start the app—use `blockchain/` as cwd).
 
-Copy the example to `node/.env` and edit values:
+Copy the example to `node/.env` for **local** runs (settings load `node/.env` relative to the `blockchain/` working directory):
 
 ```bash
 copy .env.example node\.env
 ```
 
 On macOS/Linux: `cp .env.example node/.env`
+
+For **Docker Compose**, create a `.env` file in the **`blockchain/`** project root (same folder as `docker-compose.yaml`). Compose injects those variables into the node container and uses them for the bundled PostgreSQL service. Set database credentials and `APP_PORT` there; the compose file sets **`DEPLOY_MODE=DOCKER`** and **`POSTGRES_HOST_PROD=db`** for the node so it reaches the `db` service.
 
 Important variables:
 
@@ -79,6 +81,21 @@ python node/run.py
 
 The app exposes routers under prefixes such as `/health`, `/blockchain`, `/api`, `/nodes`, and `/gossip` (see `node/main.py`).
 
+## Run with Docker Compose
+
+From **`blockchain/`**, add a root **`.env`** (see `.env.example`) with at least `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `APP_PORT` (optional; default `5000`). Then:
+
+```bash
+docker compose up --build
+```
+
+This starts:
+
+- **`node`** — the blockchain API; runs `alembic upgrade head` then **Uvicorn**. The service receives **`DEPLOY_MODE=DOCKER`** and **`POSTGRES_HOST_PROD=db`** from the compose file (in addition to variables from `.env`).
+- **`db`** — **PostgreSQL 15** with a dedicated volume (`blockchain_pg_data`) for this node’s chain data.
+
+To run a **second** node with its own database, use a separate compose project or copy the folder and change the project name, ports, and volume name so containers and data do not clash.
+
 ## Run tests
 
 ```bash
@@ -103,3 +120,4 @@ Tests use **httpx** against the ASGI app and **SQLite** in memory (see `tests/co
 | `node/repositories/` | SQLAlchemy data access |
 | `migrations/` | Alembic revisions |
 | `tests/` | Pytest suite |
+| `Dockerfile` / `docker-compose.yaml` / `start.sh` | Container image and one-node + PostgreSQL stack |

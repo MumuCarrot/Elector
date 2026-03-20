@@ -1,0 +1,34 @@
+services:
+  node:
+    build: .
+    container_name: blockchain_node
+    ports:
+      - "${APP_PORT:-5000}:${APP_PORT:-5000}"
+    env_file:
+      - .env
+    environment:
+      DEPLOY_MODE: DOCKER
+      POSTGRES_HOST_PROD: db
+      APP_HOST: 0.0.0.0
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:15
+    container_name: blockchain_db
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - blockchain_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  blockchain_pg_data:
