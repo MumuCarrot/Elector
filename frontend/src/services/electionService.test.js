@@ -35,7 +35,7 @@ describe('electionService', () => {
         const result = await electionService.getElectionResults(10);
 
         expect(axiosInstance).toHaveBeenCalledWith({
-            url: '/votes/election/10',
+            url: '/votes/election/10/results',
             method: 'GET',
             data: undefined,
         });

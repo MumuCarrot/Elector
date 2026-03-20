@@ -105,7 +105,19 @@ class ElectionService {
     }
 
     async getElectionResults(electionId) {
-        return this.request(`/votes/election/${electionId}/results`);
+        const data = await this.request(`/votes/election/${electionId}/results`);
+
+        if (Array.isArray(data)) {
+            return data.reduce((acc, vote) => {
+                const id = vote.candidate_id;
+                if (id === undefined || id === null) {
+                    return acc;
+                }
+                acc[id] = (acc[id] || 0) + 1;
+                return acc;
+            }, {});
+        }
+        return data;
     }
 }
 
