@@ -5,6 +5,11 @@ from app.repository.base_repository import BaseRepository
 
 
 class CandidateRepository(BaseRepository):
-    def __init__(self, session: AsyncSession) -> None:
-        super().__init__(model=Candidate, session=session, log_data_name="Candidate")
+    """Data access for ``Candidate`` rows."""
 
+    def __init__(self, session: AsyncSession) -> None:
+        """Args:
+            session: Async SQLAlchemy session for this unit of work.
+
+        """
+        super().__init__(model=Candidate, session=session, log_data_name="Candidate")

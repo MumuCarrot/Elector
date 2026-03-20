@@ -11,6 +11,8 @@ if TYPE_CHECKING:
 
 
 class ElectionSetting(IdMixin, Base):
+    """Per-election rules: revotes, max selections, auth, anonymous mode."""
+
     __tablename__ = "election_settings"
 
     election_id: Mapped[str] = mapped_column(

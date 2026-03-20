@@ -27,22 +27,30 @@ async def register(
     register_data: RegisterRequest,
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Register a new user. Tokens are set in httpOnly cookies.
+    """Creates a user and returns JSON user plus sets httpOnly auth cookies.
+
+    Args:
+        request: HTTP request (unused; reserved).
+        register_data: Email, password, and profile fields.
+        session: DB session.
+
+    Returns:
+        JSONResponse: 201 with ``user`` object; cookies carry tokens.
+
     """
     logger.info(f"Registration request for email: {register_data.email}")
 
     user, tokens = await auth_service.register(request, session, register_data)
 
     logger.info(f"User registered successfully: {user.id}")
-    
+
     response_data = {
-        "user": UserResponse.model_validate(user).model_dump(mode='json'),
+        "user": UserResponse.model_validate(user).model_dump(mode="json"),
     }
-    
+
     json_response = JSONResponse(content=response_data, status_code=201)
     auth_service.set_tokens_in_cookies(json_response, tokens)
-    
+
     return json_response
 
 
@@ -52,22 +60,33 @@ async def login(
     login_data: LoginRequest,
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Authenticate user. Tokens are set in httpOnly cookies.
+    """Authenticates credentials and sets token cookies.
+
+    Args:
+        request: HTTP request.
+        login_data: Email and password.
+        session: DB session.
+
+    Returns:
+        JSONResponse: ``user`` payload and cookies.
+
+    Raises:
+        InvalidCredentialsError: Bad email/password.
+
     """
     logger.info(f"Login request for email: {login_data.email}")
 
     user, tokens = await auth_service.login(request, session, login_data)
 
     logger.info(f"User logged in successfully: {user.id}")
-    
+
     response_data = {
-        "user": user.model_dump(mode='json'),
+        "user": user.model_dump(mode="json"),
     }
-    
+
     json_response = JSONResponse(content=response_data)
     auth_service.set_tokens_in_cookies(json_response, tokens)
-    
+
     return json_response
 
 
@@ -77,18 +96,26 @@ async def refresh(
     refresh_token: str = Depends(validate_refresh_token),
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Refresh access token using refresh token. New tokens are set in httpOnly cookies.
+    """Rotates JWT pair; old refresh is blacklisted.
+
+    Args:
+        request: HTTP request.
+        refresh_token: Validated refresh cookie string.
+        session: DB session.
+
+    Returns:
+        JSONResponse: Success message and new cookies.
+
     """
     logger.info("Token refresh request")
 
     tokens = await auth_service.refresh_token(session, refresh_token)
 
     logger.info("Token refreshed successfully")
-    
+
     json_response = JSONResponse(content={"detail": "Tokens refreshed successfully"})
     auth_service.set_tokens_in_cookies(json_response, tokens)
-    
+
     return json_response
 
 
@@ -98,18 +125,26 @@ async def logout(
     access_token: str = Depends(get_access_token_from_cookie),
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Logout user by blacklisting tokens.
+    """Blacklists tokens and clears cookies.
+
+    Args:
+        request: For reading ``refresh_token`` cookie.
+        access_token: Access JWT from cookie dependency.
+        session: DB session (passed through for symmetry).
+
+    Returns:
+        JSONResponse: Logout confirmation JSON.
+
     """
     logger.info("Logout request")
 
     await auth_service.logout(request, session, access_token)
 
     logger.info("User logged out successfully")
-    
+
     json_response = JSONResponse(content={"detail": "Logged out successfully"})
     auth_service.clear_tokens_in_cookies(json_response)
-    
+
     return json_response
 
 
@@ -117,11 +152,17 @@ async def logout(
 async def get_me(
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
-    """
-    Get current authenticated user information.
+    """Returns the authenticated user's public fields.
+
+    Args:
+        current_user: From JWT cookie validation.
+
+    Returns:
+        JSONResponse: Serialized ``UserResponse``.
+
     """
     logger.info(f"Getting current user info for user: {current_user.id}")
-    
+
     user_response = UserResponse.model_validate(current_user)
-    
-    return JSONResponse(content=user_response.model_dump(mode='json'))
+
+    return JSONResponse(content=user_response.model_dump(mode="json"))

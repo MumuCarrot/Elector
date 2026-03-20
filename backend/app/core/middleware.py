@@ -11,13 +11,21 @@ logger = get_logger("middleware")
 
 
 class LoggingMiddleware(BaseHTTPMiddleware):
-    """
-    Middleware to log HTTP requests and responses.
-    """
+    """Logs request start, duration, status, and attaches ``X-Request-ID`` headers."""
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """
-        Process HTTP request and log details.
+        """Invokes the next ASGI handler and logs timing and outcome.
+
+        Args:
+            request: Incoming HTTP request; ``request.state.request_id`` is set.
+            call_next: Next middleware or route handler.
+
+        Returns:
+            Response: Downstream response with diagnostic headers.
+
+        Raises:
+            Exception: Re-raised after logging on failure.
+
         """
         request_id = str(uuid.uuid4())
         start_time = time.time()
@@ -69,13 +77,18 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
-    """
-    Middleware to add request context information.
-    """
+    """Stores request start time on ``request.state`` for downstream use."""
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """
-        Add request context information.
+        """Sets ``request.state.start_time`` before delegating.
+
+        Args:
+            request: Incoming request.
+            call_next: Next handler in the stack.
+
+        Returns:
+            Response: Downstream response unchanged.
+
         """
         request.state.start_time = time.time()
 

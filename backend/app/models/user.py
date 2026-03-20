@@ -15,6 +15,8 @@ if TYPE_CHECKING:
 
 
 class User(IdMixin, Base):
+    """Registered account with hashed password and optional profile/roles."""
+
     __tablename__ = "users"
 
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False)

@@ -23,7 +23,7 @@ logger = get_logger("election_service")
 
 
 class ElectionService:
-    """Service for election CRUD operations."""
+    """Election lifecycle: nested settings, candidates, optional attachment URLs."""
 
     @staticmethod
     async def create_election(
@@ -31,7 +31,20 @@ class ElectionService:
         election_data: ElectionCreate,
         current_user: User,
     ) -> ElectionResponse:
-        """Create a new election with candidates."""
+        """Persists election, default or custom settings, candidates, and attachments.
+
+        Args:
+            session: DB session.
+            election_data: Input DTO with at least two candidates.
+            current_user: Owner stored on the election row.
+
+        Returns:
+            ElectionResponse: Fully hydrated response DTO.
+
+        Raises:
+            ValidationError: Fewer than two candidates.
+
+        """
         logger.info(f"Creating election: {election_data.title}")
 
         if not election_data.candidates or len(election_data.candidates) < 2:
@@ -110,7 +123,16 @@ class ElectionService:
     async def get_election_by_id(
         session: AsyncSession, election_id: str
     ) -> Optional[ElectionResponse]:
-        """Get election by ID."""
+        """Loads one election with related entities.
+
+        Args:
+            session: DB session.
+            election_id: Primary key.
+
+        Returns:
+            ElectionResponse | None: Missing elections yield None.
+
+        """
         logger.info(f"Getting election by id: {election_id}")
 
         repository = ElectionRepository(session)
@@ -126,7 +148,21 @@ class ElectionService:
     async def update_election(
         session: AsyncSession, election_id: str, election_data: ElectionUpdate
     ) -> ElectionResponse:
-        """Update election information."""
+        """Patches scalar fields and optionally replaces settings, candidates, attachments.
+
+        Args:
+            session: DB session.
+            election_id: Election id.
+            election_data: Partial update payload.
+
+        Returns:
+            ElectionResponse: Fresh aggregate view.
+
+        Raises:
+            UserNotFoundError: Election id not found.
+            ValidationError: Candidate list shorter than two when provided.
+
+        """
         logger.info(f"Updating election with id: {election_id}")
 
         repository = ElectionRepository(session)
@@ -227,7 +263,19 @@ class ElectionService:
 
     @staticmethod
     async def delete_election(session: AsyncSession, election_id: str) -> bool:
-        """Delete election by ID."""
+        """Deletes election row (cascades per ORM).
+
+        Args:
+            session: DB session.
+            election_id: Target id.
+
+        Returns:
+            bool: True when deleted.
+
+        Raises:
+            UserNotFoundError: When no row matched.
+
+        """
         logger.info(f"Deleting election with id: {election_id}")
 
         repository = ElectionRepository(session)
@@ -244,7 +292,17 @@ class ElectionService:
     async def get_all_elections(
         session: AsyncSession, page: int = 1, page_size: int = 10
     ) -> list[ElectionResponse]:
-        """Get all elections with pagination."""
+        """Paginated election list with nested data per row.
+
+        Args:
+            session: DB session.
+            page: Page index (1-based).
+            page_size: Items per page.
+
+        Returns:
+            list[ElectionResponse]: Possibly empty.
+
+        """
         logger.info(f"Getting all elections - page: {page}, page_size: {page_size}")
 
         repository = ElectionRepository(session)
@@ -266,7 +324,16 @@ class ElectionService:
     async def _build_election_response(
         session: AsyncSession, election: Election
     ) -> ElectionResponse:
-        """Build election response with candidates, settings, and attachments."""
+        """Assembles ``ElectionResponse`` from related tables.
+
+        Args:
+            session: DB session.
+            election: Loaded ORM election.
+
+        Returns:
+            ElectionResponse: API-shaped aggregate.
+
+        """
         candidate_repo = CandidateRepository(session)
         setting_repo = ElectionSettingRepository(session)
         attachment_repo = AttachmentRepository(session)

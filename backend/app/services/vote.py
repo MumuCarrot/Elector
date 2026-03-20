@@ -8,7 +8,7 @@ from app.exceptions.user import ValidationError
 from app.models.election_setting import ElectionSetting
 from app.repository.anonymous_vote_token_repository import AnonymousVoteTokenRepository
 from app.repository.election_setting_repository import ElectionSettingRepository
-from app.schemas.vote import VoteBatchCreate, VoteCreate, VoteUpdate, VoteResponse
+from app.schemas.vote import VoteBatchCreate, VoteCreate, VoteResponse
 from app.services.blockchain_client import (
     create_transaction,
     get_votes_by_election,
@@ -20,7 +20,7 @@ logger = get_logger("vote_service")
 
 
 class VoteService:
-    """Service for vote CRUD operations."""
+    """Submits votes to the blockchain and reads tallies via HTTP addon API."""
 
     @staticmethod
     async def create_vote(
@@ -28,7 +28,20 @@ class VoteService:
         vote_data: VoteCreate,
         user_id: str,
     ) -> VoteResponse:
-        """Create a new vote by sending a transaction to the blockchain."""
+        """Creates one on-chain vote; maps anonymous tokens to opaque voter ids.
+
+        Args:
+            session: DB session (token state updates).
+            vote_data: Election, candidate, optional anonymous token.
+            user_id: Authenticated user id.
+
+        Returns:
+            VoteResponse: Echo from blockchain create call.
+
+        Raises:
+            ValidationError: Anonymous rules violated or bad token.
+
+        """
         setting_repo = ElectionSettingRepository(session)
         setting = await setting_repo.read_one(
             condition=ElectionSetting.election_id == vote_data.election_id
@@ -74,7 +87,20 @@ class VoteService:
         batch_data: VoteBatchCreate,
         user_id: str,
     ) -> list[VoteResponse]:
-        """Create multiple votes at once. For anonymous, token is marked used after all votes."""
+        """Submits multiple candidate choices; marks anonymous token used once at end.
+
+        Args:
+            session: DB session.
+            batch_data: Election id, candidate id list, optional token.
+            user_id: Authenticated user id.
+
+        Returns:
+            list[VoteResponse]: One entry per successful blockchain transaction.
+
+        Raises:
+            ValidationError: Same anonymous checks as ``create_vote``.
+
+        """
         setting_repo = ElectionSettingRepository(session)
         setting = await setting_repo.read_one(
             condition=ElectionSetting.election_id == batch_data.election_id
@@ -127,8 +153,15 @@ class VoteService:
     async def get_results_by_election(
         election_id: str
     ) -> dict:
-        """Get all votes for a specific election."""
+        """Aggregates candidate vote counts from blockchain read API.
 
+        Args:
+            election_id: Election id.
+
+        Returns:
+            dict: Candidate id -> count map.
+
+        """
         votes = await get_votes_by_election(election_id)
         results = {}
         for vote in votes.get("votes", []):
@@ -138,10 +171,17 @@ class VoteService:
 
     @staticmethod
     async def get_votes_by_user(
-        user_id: str
-        ) -> list[VoteResponse]:
-        """Get all votes by a specific user from blockchain."""
-        
+        user_id: str,
+    ) -> list[VoteResponse]:
+        """Lists votes where ``voter_id`` equals the given user (or token id).
+
+        Args:
+            user_id: Voter identifier as stored on chain.
+
+        Returns:
+            list[VoteResponse]: Parsed transactions.
+
+        """
         transactions = await get_votes_by_user(user_id)
         return [
             VoteResponse(
@@ -158,8 +198,16 @@ class VoteService:
     async def get_user_vote_for_election(
         election_id: str, user_id: str
     ) -> Optional[VoteResponse]:
-        """Get user's vote for a specific election from blockchain."""
+        """Fetches a single vote row for user+election from blockchain.
 
+        Args:
+            election_id: Election id.
+            user_id: Voter id on chain (real user id for non-anonymous).
+
+        Returns:
+            VoteResponse | None: None if HTTP 404 from node.
+
+        """
         tx = await get_user_vote_for_election(election_id, user_id)
         if not tx:
             return None
@@ -175,7 +223,17 @@ class VoteService:
     async def has_user_voted_anonymous(
         session: AsyncSession, election_id: str, user_id: str
     ) -> bool:
-        """Check if user has voted in an anonymous election (by used token)."""
+        """True if an anonymous token row exists and ``used_at`` is set.
+
+        Args:
+            session: DB session.
+            election_id: Election id.
+            user_id: Real user id (not token string).
+
+        Returns:
+            bool: Participation flag for anonymous flows.
+
+        """
         token_repo = AnonymousVoteTokenRepository(session)
         record = await token_repo.get_by_user_and_election(user_id, election_id)
         return record is not None and record.used_at is not None

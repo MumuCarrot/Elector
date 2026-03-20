@@ -12,6 +12,8 @@ if TYPE_CHECKING:
 
 
 class Candidate(IdMixin, Base):
+    """Choice option belonging to a single election."""
+
     __tablename__ = "candidates"
 
     election_id: Mapped[str] = mapped_column(String(36), ForeignKey("elections.id"), nullable=False)

@@ -22,7 +22,7 @@ logger = get_logger("auth_service")
 
 
 class AuthService:
-    """Service for authentication operations."""
+    """Registers users, issues JWT cookies, refresh rotation, and logout blacklist."""
 
     @staticmethod
     async def register(
@@ -30,7 +30,21 @@ class AuthService:
         session: AsyncSession,
         register_data: RegisterRequest,
     ) -> tuple[UserResponse, TokenResponse]:
-        """Register a new user and return tokens."""
+        """Creates a user, profile shell, and token pair.
+
+        Args:
+            request: Unused today; reserved for request-scoped metadata.
+            session: Database session.
+            register_data: Registration payload.
+
+        Returns:
+            tuple: ``(UserResponse, TokenResponse)``.
+
+        Raises:
+            UserAlreadyExistsError: From user creation.
+            UserNotFoundError: If post-create fetch fails unexpectedly.
+
+        """
         logger.info(f"Registering new user with email: {register_data.email}")
 
         user = await UserService.create_user(session, register_data)
@@ -51,7 +65,20 @@ class AuthService:
         session: AsyncSession,
         login_data: LoginRequest,
     ) -> tuple[UserResponse, TokenResponse]:
-        """Authenticate user and return tokens."""
+        """Validates email/password and returns a new token pair.
+
+        Args:
+            request: Unused; reserved.
+            session: Database session.
+            login_data: Credentials.
+
+        Returns:
+            tuple: Serialized user and ``TokenResponse``.
+
+        Raises:
+            InvalidCredentialsError: Unknown user or bad password.
+
+        """
         logger.info(f"Login attempt for email: {login_data.email}")
 
         user = await UserService.get_user_by_email(session, login_data.email)
@@ -74,7 +101,19 @@ class AuthService:
     async def refresh_token(
         session: AsyncSession, refresh_token: str
     ) -> TokenResponse:
-        """Refresh access token using refresh token."""
+        """Rotates tokens: blacklists old refresh and issues a new pair.
+
+        Args:
+            session: Database session for user lookup.
+            refresh_token: Valid refresh JWT string.
+
+        Returns:
+            TokenResponse: New access and refresh strings.
+
+        Raises:
+            InvalidCredentialsError: Blacklisted, bad subject, or missing user.
+
+        """
         logger.info("Refreshing token")
 
         if await is_token_blacklisted(refresh_token):
@@ -104,7 +143,17 @@ class AuthService:
     async def logout(
         request: Request, session: AsyncSession, access_token: str
     ) -> bool:
-        """Logout user by blacklisting tokens."""
+        """Blacklists access and refresh cookies if present.
+
+        Args:
+            request: Source of ``refresh_token`` cookie.
+            session: Unused; kept for API symmetry.
+            access_token: Access JWT to revoke.
+
+        Returns:
+            bool: Always True on success.
+
+        """
         logger.info("Logging out user")
 
         refresh_token = request.cookies.get("refresh_token")
@@ -121,7 +170,13 @@ class AuthService:
     def set_tokens_in_cookies(
         response: Response, tokens: TokenResponse
     ) -> None:
-        """Set tokens in HTTP-only cookies."""
+        """Writes httpOnly cookies for access and refresh tokens.
+
+        Args:
+            response: Outgoing Starlette/FastAPI response.
+            tokens: Token strings and metadata wrapper.
+
+        """
         secure = settings.app_settings.APP_SECURE_COOKIES
         max_age_access = settings.auth_settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
         max_age_refresh = settings.auth_settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400
@@ -148,20 +203,25 @@ class AuthService:
 
     @staticmethod
     def clear_tokens_in_cookies(response: Response) -> None:
-        """Clear tokens from cookies."""
+        """Deletes auth cookies from the client.
+
+        Args:
+            response: Outgoing response used to issue ``delete_cookie``.
+
+        """
         secure = settings.app_settings.APP_SECURE_COOKIES
-        
+
         response.delete_cookie(
             key="access_token",
             httponly=True,
             secure=secure,
-            samesite="lax"
+            samesite="lax",
         )
         response.delete_cookie(
             key="refresh_token",
             httponly=True,
             secure=secure,
-            samesite="lax"
+            samesite="lax",
         )
 
         logger.debug("Tokens cleared from cookies")

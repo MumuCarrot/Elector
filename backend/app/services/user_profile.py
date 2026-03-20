@@ -19,13 +19,26 @@ logger = get_logger("user_profile_service")
 
 
 class UserProfileService:
-    """Service for user profile CRUD operations."""
+    """CRUD for extended profile fields keyed by ``user_id``."""
 
     @staticmethod
     async def create_user_profile(
         session: AsyncSession, profile_data: UserProfileCreate
     ) -> UserProfileResponse:
-        """Create a new user profile."""
+        """Creates profile if user exists and no profile row yet.
+
+        Args:
+            session: DB session.
+            profile_data: Includes ``user_id`` and optional fields.
+
+        Returns:
+            UserProfileResponse: New profile.
+
+        Raises:
+            UserNotFoundError: Missing user.
+            ValidationError: Profile already exists for user.
+
+        """
         logger.info(f"Creating user profile for user: {profile_data.user_id}")
 
         user_repo = UserRepository(session)
@@ -67,7 +80,16 @@ class UserProfileService:
     async def get_user_profile_by_id(
         session: AsyncSession, profile_id: str
     ) -> Optional[UserProfileResponse]:
-        """Get user profile by ID."""
+        """Loads profile by profile primary key.
+
+        Args:
+            session: DB session.
+            profile_id: Profile row id.
+
+        Returns:
+            UserProfileResponse | None: None if missing.
+
+        """
         logger.info(f"Getting user profile by id: {profile_id}")
 
         repository = UserProfileRepository(session)
@@ -85,7 +107,16 @@ class UserProfileService:
     async def get_user_profile_by_user_id(
         session: AsyncSession, user_id: str
     ) -> Optional[UserProfileResponse]:
-        """Get user profile by user ID."""
+        """Loads profile by owning user id.
+
+        Args:
+            session: DB session.
+            user_id: User fk.
+
+        Returns:
+            UserProfileResponse | None: None if missing.
+
+        """
         logger.info(f"Getting user profile by user id: {user_id}")
 
         repository = UserProfileRepository(session)
@@ -103,7 +134,20 @@ class UserProfileService:
     async def update_user_profile(
         session: AsyncSession, profile_id: str, profile_data: UserProfileUpdate
     ) -> UserProfileResponse:
-        """Update user profile information."""
+        """Updates by profile id.
+
+        Args:
+            session: DB session.
+            profile_id: Profile row id.
+            profile_data: Partial fields.
+
+        Returns:
+            UserProfileResponse: Updated DTO.
+
+        Raises:
+            UserNotFoundError: Profile row missing.
+
+        """
         logger.info(f"Updating user profile with id: {profile_id}")
 
         repository = UserProfileRepository(session)
@@ -129,7 +173,20 @@ class UserProfileService:
     async def update_user_profile_by_user_id(
         session: AsyncSession, user_id: str, profile_data: UserProfileUpdate
     ) -> UserProfileResponse:
-        """Update user profile by user ID."""
+        """Updates profile row matching ``user_id``.
+
+        Args:
+            session: DB session.
+            user_id: User fk.
+            profile_data: Partial fields.
+
+        Returns:
+            UserProfileResponse: Updated DTO.
+
+        Raises:
+            UserNotFoundError: No profile for user.
+
+        """
         logger.info(f"Updating user profile for user: {user_id}")
 
         repository = UserProfileRepository(session)
@@ -157,7 +214,19 @@ class UserProfileService:
     async def delete_user_profile(
         session: AsyncSession, profile_id: str
     ) -> bool:
-        """Delete user profile by ID."""
+        """Deletes profile row by id.
+
+        Args:
+            session: DB session.
+            profile_id: Profile row id.
+
+        Returns:
+            bool: True when deleted.
+
+        Raises:
+            UserNotFoundError: Row missing.
+
+        """
         logger.info(f"Deleting user profile with id: {profile_id}")
 
         repository = UserProfileRepository(session)
@@ -178,7 +247,19 @@ class UserProfileService:
     async def delete_user_profile_by_user_id(
         session: AsyncSession, user_id: str
     ) -> bool:
-        """Delete user profile by user ID."""
+        """Deletes profile by user fk.
+
+        Args:
+            session: DB session.
+            user_id: User id.
+
+        Returns:
+            bool: True when deleted.
+
+        Raises:
+            UserNotFoundError: Row missing.
+
+        """
         logger.info(f"Deleting user profile for user: {user_id}")
 
         repository = UserProfileRepository(session)
@@ -201,7 +282,17 @@ class UserProfileService:
     async def get_all_user_profiles(
         session: AsyncSession, page: int = 1, page_size: int = 10
     ) -> list[UserProfileResponse]:
-        """Get all user profiles with pagination."""
+        """Paginated profile listing.
+
+        Args:
+            session: DB session.
+            page: Page number.
+            page_size: Page size.
+
+        Returns:
+            list[UserProfileResponse]: Possibly empty.
+
+        """
         logger.info(
             f"Getting all user profiles - page: {page}, page_size: {page_size}"
         )

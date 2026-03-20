@@ -19,9 +19,16 @@ async def create_election(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Create a new election with candidates and settings.
-    Requires authentication.
+    """Creates election with settings, candidates, and optional attachments.
+
+    Args:
+        election_data: Full create payload.
+        current_user: Owner id stored on the election.
+        session: DB session.
+
+    Returns:
+        JSONResponse: 201 with serialized election aggregate.
+
     """
     logger.info(f"Creating election: {election_data.title} by user: {current_user.id}")
 
@@ -32,9 +39,9 @@ async def create_election(
     )
 
     logger.info(f"Election created successfully: {election.id}")
-    
+
     return JSONResponse(
-        content=election.model_dump(mode='json'), status_code=201
+        content=election.model_dump(mode="json"), status_code=201
     )
 
 
@@ -44,8 +51,16 @@ async def get_all_elections(
     page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Get all elections with pagination.
+    """Paginated list of elections with nested relations per item.
+
+    Args:
+        page: 1-based page index.
+        page_size: Page size (max 100).
+        session: DB session.
+
+    Returns:
+        JSONResponse: JSON array of elections.
+
     """
     logger.info(f"Getting all elections - page: {page}, page_size: {page_size}")
 
@@ -53,8 +68,8 @@ async def get_all_elections(
         session, page=page, page_size=page_size
     )
 
-    response_data = [election.model_dump(mode='json') for election in elections]
-    
+    response_data = [election.model_dump(mode="json") for election in elections]
+
     return JSONResponse(content=response_data)
 
 
@@ -63,8 +78,18 @@ async def get_election_by_id(
     election_id: str,
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Get election by ID.
+    """Fetches one election by id.
+
+    Args:
+        election_id: Primary key.
+        session: DB session.
+
+    Returns:
+        JSONResponse: Election JSON.
+
+    Raises:
+        UserNotFoundError: Used here as 404 when election missing (legacy choice).
+
     """
     logger.info(f"Getting election: {election_id}")
 
@@ -75,7 +100,7 @@ async def get_election_by_id(
 
         raise UserNotFoundError(f"Election with id {election_id} not found")
 
-    return JSONResponse(content=election.model_dump(mode='json'))
+    return JSONResponse(content=election.model_dump(mode="json"))
 
 
 @router.put("/{election_id}")
@@ -84,8 +109,16 @@ async def update_election(
     election_data: ElectionUpdate,
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Update election information.
+    """Updates election fields and optionally replaces nested collections.
+
+    Args:
+        election_id: Target id.
+        election_data: Partial update DTO.
+        session: DB session.
+
+    Returns:
+        JSONResponse: Updated aggregate.
+
     """
     logger.info(f"Updating election: {election_id}")
 
@@ -94,8 +127,8 @@ async def update_election(
     )
 
     logger.info(f"Election updated successfully: {election.id}")
-    
-    return JSONResponse(content=election.model_dump(mode='json'))
+
+    return JSONResponse(content=election.model_dump(mode="json"))
 
 
 @router.delete("/{election_id}")
@@ -103,15 +136,22 @@ async def delete_election(
     election_id: str,
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Delete election by ID.
+    """Deletes election and dependent rows per ORM cascades.
+
+    Args:
+        election_id: Target id.
+        session: DB session.
+
+    Returns:
+        JSONResponse: Success detail message.
+
     """
     logger.info(f"Deleting election: {election_id}")
 
     await election_service.delete_election(session, election_id)
 
     logger.info(f"Election deleted successfully: {election_id}")
-    
+
     return JSONResponse(
         content={"detail": f"Election with id {election_id} deleted successfully"},
         status_code=200,

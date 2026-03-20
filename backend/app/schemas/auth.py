@@ -4,14 +4,29 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class LoginRequest(BaseModel):
-    """Schema for user login request."""
+    """Credentials payload for ``/auth/login``.
+
+    Attributes:
+        email: User email.
+        password: Plaintext password (minimum length enforced).
+
+    """
 
     email: EmailStr = Field(..., description="User email address")
     password: str = Field(..., min_length=8, description="User password")
 
 
 class RegisterRequest(BaseModel):
-    """Schema for user registration request."""
+    """Payload for ``/auth/register`` and admin user create.
+
+    Attributes:
+        email: Unique login email.
+        password: Initial password.
+        phone: Optional contact phone.
+        first_name: Optional given name.
+        last_name: Optional family name.
+
+    """
 
     email: EmailStr = Field(..., description="User email address")
     password: str = Field(..., min_length=8, description="User password")
@@ -21,13 +36,24 @@ class RegisterRequest(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    """Schema for token response."""
+    """Pair of JWT strings returned by auth service (also set as cookies).
+
+    Attributes:
+        access_token: Short-lived JWT.
+        refresh_token: Long-lived JWT with ``jti``.
+
+    """
 
     access_token: str
     refresh_token: str
 
 
 class RefreshTokenRequest(BaseModel):
-    """Schema for refresh token request."""
+    """Optional body-based refresh (cookies are primary in this API).
+
+    Attributes:
+        refresh_token: Refresh JWT if not using cookies.
+
+    """
 
     refresh_token: Optional[str] = Field(None, description="Refresh token")

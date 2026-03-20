@@ -8,10 +8,15 @@ from app.core.settings import settings
 
 
 def get_logging_config() -> Dict[str, Any]:
-    """
-    Get logging configuration dictionary.
-    """
+    """Builds a ``dictConfig``-compatible logging configuration.
 
+    Ensures the ``logs`` directory exists and wires console, rotating app log,
+    and error log handlers.
+
+    Returns:
+        dict: Configuration accepted by ``logging.config.dictConfig``.
+
+    """
     logs_dir = Path("logs")
     logs_dir.mkdir(exist_ok=True)
 
@@ -96,8 +101,11 @@ def get_logging_config() -> Dict[str, Any]:
 
 
 def setup_logging() -> logging.Logger:
-    """
-    Setup logging configuration.
+    """Applies dict logging config and returns the ``app`` logger.
+
+    Returns:
+        logging.Logger: Logger named ``app``.
+
     """
     config = get_logging_config()
     logging.config.dictConfig(config)
@@ -109,7 +117,13 @@ def setup_logging() -> logging.Logger:
 
 
 def get_logger(name: str = "app") -> logging.Logger:
-    """
-    Get a logger instance.
+    """Returns a logger by name (child of configured hierarchy).
+
+    Args:
+        name: Logger name, default ``app``.
+
+    Returns:
+        logging.Logger: Named logger instance.
+
     """
     return logging.getLogger(name)

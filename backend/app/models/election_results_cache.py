@@ -12,6 +12,8 @@ if TYPE_CHECKING:
 
 
 class ElectionResultsCache(IdMixin, Base):
+    """Optional JSON snapshot of computed results per election."""
+
     __tablename__ = "election_results_cache"
 
     election_id: Mapped[str] = mapped_column(

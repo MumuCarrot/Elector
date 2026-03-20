@@ -12,6 +12,8 @@ if TYPE_CHECKING:
 
 
 class UserProfile(IdMixin, Base):
+    """Extended attributes for a user (1:1 via ``user_id``)."""
+
     __tablename__ = "user_profiles"
 
     user_id: Mapped[str] = mapped_column(

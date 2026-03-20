@@ -16,6 +16,8 @@ if TYPE_CHECKING:
 
 
 class Election(IdMixin, Base):
+    """Voting event with schedule, visibility, owner, and related entities."""
+
     __tablename__ = "elections"
 
     title: Mapped[str] = mapped_column(String, nullable=False)

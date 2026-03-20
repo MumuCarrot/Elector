@@ -14,6 +14,8 @@ if TYPE_CHECKING:
 
 
 class Attachment(IdMixin, Base):
+    """File URL linked optionally to user, election, or candidate."""
+
     __tablename__ = "attachments"
 
     user_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("users.id"), nullable=True)

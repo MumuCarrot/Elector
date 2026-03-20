@@ -5,6 +5,13 @@ from app.repository.base_repository import BaseRepository
 
 
 class UserProfileRepository(BaseRepository):
-    def __init__(self, session: AsyncSession) -> None:
-        super().__init__(model=UserProfile, session=session, log_data_name="UserProfile")
+    """Data access for ``UserProfile`` rows."""
 
+    def __init__(self, session: AsyncSession) -> None:
+        """Args:
+            session: Async SQLAlchemy session for this unit of work.
+
+        """
+        super().__init__(
+            model=UserProfile, session=session, log_data_name="UserProfile"
+        )

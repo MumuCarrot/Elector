@@ -12,8 +12,12 @@ TRANSACTIONS_NEW_PATH = "/blockchain/transactions/new"
 
 
 def _get_blockchain_base_url() -> str:
-    """Build blockchain node base URL from settings."""
+    """Combines configured host and port without a trailing slash on host.
 
+    Returns:
+        str: Base like ``http://localhost:5000`` (no path).
+
+    """
     host = settings.blockchain_settings.BLOCKCHAIN_HOST.rstrip("/")
     port = settings.blockchain_settings.BLOCKCHAIN_PORT
     return f"{host}:{port}"
@@ -25,8 +29,21 @@ async def create_transaction(
     candidate_id: str | None = None,
     created_at: datetime | None = None,
 ) -> dict:
-    """Send a new transaction to the blockchain node."""
-    
+    """POSTs a vote transaction to the blockchain node's mempool.
+
+    Args:
+        election_id: Election UUID string.
+        voter_id: Real user id or anonymous token string per election rules.
+        candidate_id: Chosen candidate id, if applicable.
+        created_at: Optional timestamp; defaults to UTC now.
+
+    Returns:
+        dict: Parsed JSON from the node (includes ``transaction_id``, etc.).
+
+    Raises:
+        BlockchainConnectionError: On connection failure or non-success HTTP.
+
+    """
     base_url = _get_blockchain_base_url()
     url = f"{base_url}{TRANSACTIONS_NEW_PATH}"
 
@@ -61,14 +78,27 @@ async def create_transaction(
         ) from e
 
     except httpx.HTTPStatusError as e:
-        logger.error("Blockchain API error: %s - %s", e.response.status_code, e.response.text)
+        logger.error(
+            "Blockchain API error: %s - %s", e.response.status_code, e.response.text
+        )
         raise BlockchainConnectionError(
             detail=f"Blockchain node returned error: {e.response.status_code}"
         ) from e
 
 
 async def _get_json(url: str) -> dict:
-    """GET request to blockchain API."""
+    """Performs GET and parses JSON body.
+
+    Args:
+        url: Full URL including scheme and path.
+
+    Returns:
+        dict: Parsed JSON object.
+
+    Raises:
+        BlockchainConnectionError: On network or HTTP errors.
+
+    """
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(url)
@@ -80,23 +110,39 @@ async def _get_json(url: str) -> dict:
             detail=f"Could not connect to blockchain node at {url}"
         ) from e
     except httpx.HTTPStatusError as e:
-        logger.error("Blockchain API error: %s - %s", e.response.status_code, e.response.text)
+        logger.error(
+            "Blockchain API error: %s - %s", e.response.status_code, e.response.text
+        )
         raise BlockchainConnectionError(
             detail=f"Blockchain node returned error: {e.response.status_code}"
         ) from e
 
 
 async def get_votes_by_election(election_id: str) -> dict:
-    """Get all votes for a specific election (DB query by election_id)."""
+    """Fetches aggregated vote rows for an election from the node's addon API.
 
+    Args:
+        election_id: Election id path segment.
+
+    Returns:
+        dict: Node JSON (typically ``votes`` and ``count``).
+
+    """
     base_url = _get_blockchain_base_url()
     url = f"{base_url}/api/elid/{election_id}"
     return await _get_json(url)
 
 
 async def get_votes_by_user(user_id: str) -> list[dict]:
-    """Get all votes by a specific user (DB query by voter_id)."""
+    """Lists all vote dicts for a voter id.
 
+    Args:
+        user_id: Voter id path segment.
+
+    Returns:
+        list[dict]: ``votes`` array from the node response.
+
+    """
     base_url = _get_blockchain_base_url()
     url = f"{base_url}/api/uid/{user_id}"
     data = await _get_json(url)
@@ -106,8 +152,19 @@ async def get_votes_by_user(user_id: str) -> list[dict]:
 async def get_user_vote_for_election(
     election_id: str, user_id: str
 ) -> dict | None:
-    """Get user's vote for a specific election (DB query by election_id + voter_id)."""
+    """Looks up a single vote for user+election; 404 maps to None.
 
+    Args:
+        election_id: Election id.
+        user_id: Voter id.
+
+    Returns:
+        dict | None: Vote payload or None if not found.
+
+    Raises:
+        BlockchainConnectionError: On non-404 HTTP errors or connection issues.
+
+    """
     base_url = _get_blockchain_base_url()
     url = f"{base_url}/api/elid/{election_id}/uid/{user_id}"
     try:
@@ -117,7 +174,7 @@ async def get_user_vote_for_election(
                 return None
             response.raise_for_status()
             return response.json()
-            
+
     except httpx.ConnectError as e:
         logger.error("Blockchain connection failed: %s", e)
         raise BlockchainConnectionError(
@@ -125,7 +182,9 @@ async def get_user_vote_for_election(
         ) from e
 
     except httpx.HTTPStatusError as e:
-        logger.error("Blockchain API error: %s - %s", e.response.status_code, e.response.text)
+        logger.error(
+            "Blockchain API error: %s - %s", e.response.status_code, e.response.text
+        )
         raise BlockchainConnectionError(
             detail=f"Blockchain node returned error: {e.response.status_code}"
         ) from e

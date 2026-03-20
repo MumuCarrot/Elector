@@ -18,13 +18,25 @@ logger = get_logger("user_service")
 
 
 class UserService:
-    """Service for user CRUD operations."""
+    """Creates and queries users; resolves ORM user from JWT cookie."""
 
     @staticmethod
     async def create_user(
         session: AsyncSession, user_data: UserCreate
     ) -> UserResponse:
-        """Create a new user."""
+        """Persists user and empty profile row.
+
+        Args:
+            session: DB session.
+            user_data: Registration fields including plaintext password.
+
+        Returns:
+            UserResponse: Serialized created user.
+
+        Raises:
+            UserAlreadyExistsError: Duplicate email.
+
+        """
         logger.info(f"Creating user with email: {user_data.email}")
 
         repository = UserRepository(session)
@@ -69,7 +81,16 @@ class UserService:
     async def get_user_by_id(
         session: AsyncSession, user_id: str
     ) -> Optional[UserResponse]:
-        """Get user by ID."""
+        """Loads user by primary key.
+
+        Args:
+            session: DB session.
+            user_id: UUID string.
+
+        Returns:
+            UserResponse | None: Missing users return None.
+
+        """
         logger.info(f"Getting user by id: {user_id}")
 
         repository = UserRepository(session)
@@ -85,7 +106,16 @@ class UserService:
     async def get_user_by_email(
         session: AsyncSession, email: str
     ) -> Optional[User]:
-        """Get user by email."""
+        """Fetches ORM user by unique email (login path).
+
+        Args:
+            session: DB session.
+            email: Login email.
+
+        Returns:
+            User | None: ORM instance or None.
+
+        """
         logger.debug(f"Getting user by email: {email}")
 
         repository = UserRepository(session)
@@ -97,7 +127,20 @@ class UserService:
     async def get_user_by_token(
         request: Request, session: AsyncSession
     ) -> User:
-        """Get user by token from request."""
+        """Decodes ``access_token`` cookie and loads ``User`` ORM row.
+
+        Args:
+            request: HTTP request with cookies.
+            session: DB session.
+
+        Returns:
+            User: ORM model (not Pydantic).
+
+        Raises:
+            TokenNotFoundError: Missing cookie.
+            UserNotFoundError: Unknown user or unsupported auth mode.
+
+        """
         logger.debug("Getting user by token")
 
         token_data = get_bearer_token(request)
@@ -113,15 +156,27 @@ class UserService:
             if not user_model:
                 raise UserNotFoundError("User not found")
             return user_model
-        else:
-            # Alternative variants: external auth providers
-            raise UserNotFoundError("Unsupported authentication method")
+        raise UserNotFoundError("Unsupported authentication method")
 
     @staticmethod
     async def update_user(
         session: AsyncSession, user_id: str, user_data: UserUpdate
     ) -> UserResponse:
-        """Update user information."""
+        """Partial update with optional password re-hash and email uniqueness check.
+
+        Args:
+            session: DB session.
+            user_id: Target user id.
+            user_data: Fields to change.
+
+        Returns:
+            UserResponse: Updated user.
+
+        Raises:
+            UserNotFoundError: User missing.
+            UserAlreadyExistsError: Email taken by another user.
+
+        """
         logger.info(f"Updating user with id: {user_id}")
 
         repository = UserRepository(session)
@@ -158,7 +213,19 @@ class UserService:
 
     @staticmethod
     async def delete_user(session: AsyncSession, user_id: str) -> bool:
-        """Delete user by ID."""
+        """Deletes user row by id.
+
+        Args:
+            session: DB session.
+            user_id: User id.
+
+        Returns:
+            bool: True when a row was removed.
+
+        Raises:
+            UserNotFoundError: No row deleted.
+
+        """
         logger.info(f"Deleting user with id: {user_id}")
 
         repository = UserRepository(session)
@@ -175,7 +242,17 @@ class UserService:
     async def get_all_users(
         session: AsyncSession, page: int = 1, page_size: int = 10
     ) -> list[UserResponse]:
-        """Get all users with pagination."""
+        """Paginated list of users.
+
+        Args:
+            session: DB session.
+            page: 1-based page.
+            page_size: Page length.
+
+        Returns:
+            list[UserResponse]: Page of users (empty list if none).
+
+        """
         logger.info(f"Getting all users - page: {page}, page_size: {page_size}")
 
         repository = UserRepository(session)

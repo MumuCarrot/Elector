@@ -54,8 +54,15 @@ logger.info("Middleware configuration completed")
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """
-    Handle request validation errors and log details.
+    """Returns 422 JSON with Pydantic validation errors and logs the request path.
+
+    Args:
+        request: Incoming request.
+        exc: Validation error from FastAPI body/query parsing.
+
+    Returns:
+        JSONResponse: ``detail`` list from ``exc.errors()``.
+
     """
     errors_detail = exc.errors()
     logger.warning(

@@ -4,7 +4,17 @@ from app.core.settings import settings
 
 
 class TokenPairJSONResponse(JSONResponse):
+    """JSONResponse that also sets httpOnly auth cookies from token strings."""
+
     def __init__(self, access_token: str, refresh_token: str, content: dict):
+        """Serializes ``content`` and attaches access/refresh cookies.
+
+        Args:
+            access_token: JWT for ``access_token`` cookie.
+            refresh_token: JWT for ``refresh_token`` cookie.
+            content: JSON body (without raw tokens if desired).
+
+        """
         super().__init__(content=content)
 
         self.access_token = access_token

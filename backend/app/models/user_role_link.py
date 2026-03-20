@@ -12,6 +12,8 @@ if TYPE_CHECKING:
 
 
 class UserRoleLink(IdMixin, Base):
+    """Associates a user with a ``UserRole``."""
+
     __tablename__ = "user_role_links"
 
     user_id: Mapped[str] = mapped_column(

@@ -11,8 +11,13 @@ logger = get_logger("base_repo")
 
 
 class BaseRepository:
-    """
-    Base repository class for common database operations.
+    """Async CRUD helpers for a single SQLAlchemy declarative model.
+
+    Attributes:
+        model: ORM model class bound to this repository.
+        session: Async session used for all queries and commits.
+        log_data_name: Label used in log messages for this entity type.
+
     """
 
     def __init__(
@@ -25,10 +30,20 @@ class BaseRepository:
         self.session = session
         self.log_data_name = log_data_name
 
-    async def create(
-        self,
-        data: Any,
-    ) -> Any:
+    async def create(self, data: Any) -> Any:
+        """Persists a new ORM instance.
+
+        Args:
+            data: Model instance to insert.
+
+        Returns:
+            The refreshed instance after commit.
+
+        Raises:
+            ValueError: On integrity constraint violations.
+            Exception: Other errors are logged and re-raised after rollback.
+
+        """
         try:
             self.session.add(data)
 
@@ -49,11 +64,20 @@ class BaseRepository:
             logger.error(f"Error creating {self.log_data_name}: {str(e)}")
             raise
 
-    async def update(
-        self,
-        data: Any,
-        condition: Any = None,
-    ) -> Any:
+    async def update(self, data: Any, condition: Any = None) -> Any:
+        """Updates a row by tracked instance or by filter plus dict/model payload.
+
+        Args:
+            data: Tracked instance, dict of fields, or model with new values.
+            condition: SQLAlchemy filter when ``data`` is not a tracked instance.
+
+        Returns:
+            Updated ORM instance.
+
+        Raises:
+            ValueError: Missing condition, row not found, or instance not tracked.
+
+        """
         try:
             if isinstance(data, self.model) and condition is None:
                 try:
@@ -107,6 +131,15 @@ class BaseRepository:
             raise
 
     async def delete(self, condition: Any = False) -> bool:
+        """Deletes the first row matching ``condition``.
+
+        Args:
+            condition: SQLAlchemy boolean expression.
+
+        Returns:
+            True if a row was deleted.
+
+        """
         try:
             result = await self.session.execute(select(self.model).where(condition))
             data = result.scalar_one_or_none()
@@ -125,11 +158,17 @@ class BaseRepository:
             logger.error(f"Error deleting {self.log_data_name}: {str(e)}")
             raise
 
-    async def read_one(
-        self,
-        condition: Any = False,
-        options: Any = None,
-    ) -> Any:
+    async def read_one(self, condition: Any = False, options: Any = None) -> Any:
+        """Returns one row or None.
+
+        Args:
+            condition: SQLAlchemy filter expression.
+            options: Optional sequence of loader options for ``select``.
+
+        Returns:
+            Model instance or None.
+
+        """
         try:
             result = await self.session.execute(
                 select(self.model).where(condition).options(*(options or []))
@@ -146,10 +185,16 @@ class BaseRepository:
             logger.error(f"Error reading {self.log_data_name}: {str(e)}")
             raise
 
-    async def read_many(
-        self,
-        condition: Any = False,
-    ) -> Any:
+    async def read_many(self, condition: Any = False) -> Any:
+        """Returns all rows matching ``condition``.
+
+        Args:
+            condition: SQLAlchemy filter expression.
+
+        Returns:
+            List of instances, or empty list if none match.
+
+        """
         try:
             result = await self.session.execute(select(self.model).where(condition))
             data = result.scalars().all()
@@ -170,6 +215,17 @@ class BaseRepository:
         page: int = 1,
         page_size: int = 0,
     ) -> Any:
+        """Returns a slice of rows using offset/limit pagination.
+
+        Args:
+            condition: Filter expression; default includes all rows.
+            page: 1-based page index.
+            page_size: Maximum rows per page.
+
+        Returns:
+            List of instances for the requested page.
+
+        """
         try:
             offset = (page - 1) * page_size
             result = await self.session.execute(

@@ -1,17 +1,19 @@
 import secrets
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging_config import get_logger
 from app.dependencies.database import get_db
 from app.dependencies.token import get_current_user
+from app.models.anonymous_vote_token import AnonymousVoteToken
 from app.models.election_setting import ElectionSetting
 from app.models.user import User
 from app.repository.anonymous_vote_token_repository import AnonymousVoteTokenRepository
 from app.repository.election_setting_repository import ElectionSettingRepository
-from app.schemas.vote import VoteCreate, VoteUpdate, VoteBatchCreate
+from app.schemas.vote import VoteBatchCreate, VoteCreate
 from app.services.vote import vote_service
 
 router = APIRouter(tags=["votes"])
@@ -24,9 +26,20 @@ async def request_anonymous_token(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Get a one-time anonymous vote token for an election.
-    Required before voting in anonymous elections. One token per user per election.
+    """Issues or returns an existing anonymous voting token for this user+election.
+
+    Args:
+        election_id: Target election.
+        current_user: Authenticated user (real identity stored server-side only).
+        session: DB session.
+
+    Returns:
+        JSONResponse: ``{"token": "..."}``.
+
+    Raises:
+        HTTPException: 400 if election is not anonymous or user already voted
+            without revote allowed.
+
     """
     setting_repo = ElectionSettingRepository(session)
     setting = await setting_repo.read_one(
@@ -50,9 +63,6 @@ async def request_anonymous_token(
             )
         return JSONResponse(content={"token": existing.token})
 
-    from app.models.anonymous_vote_token import AnonymousVoteToken
-    from datetime import datetime, timezone
-
     token = secrets.token_urlsafe(32)
     token_record = AnonymousVoteToken(
         election_id=election_id,
@@ -61,7 +71,11 @@ async def request_anonymous_token(
         created_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
     await token_repo.create(token_record)
-    logger.info(f"Created anonymous token for user {current_user.id} election {election_id}")
+    logger.info(
+        "Created anonymous token for user %s election %s",
+        current_user.id,
+        election_id,
+    )
     return JSONResponse(content={"token": token})
 
 
@@ -71,9 +85,16 @@ async def create_vote(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Create a new vote.
-    For anonymous elections, include anonymous_token from request-token endpoint.
+    """Submits a single vote to the blockchain (authenticated user).
+
+    Args:
+        vote_data: Election, candidate, optional ``anonymous_token``.
+        current_user: Caller.
+        session: DB session.
+
+    Returns:
+        JSONResponse: 201 with vote echo from chain.
+
     """
     logger.info(
         f"Creating vote for election {vote_data.election_id} by user {current_user.id}"
@@ -98,9 +119,16 @@ async def create_votes_batch(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Create multiple votes at once (for max_votes > 1).
-    For anonymous elections, include anonymous_token from request-token endpoint.
+    """Submits multiple votes in one request (e.g. multi-select elections).
+
+    Args:
+        batch_data: Election, candidate id list, optional anonymous token.
+        current_user: Caller.
+        session: DB session.
+
+    Returns:
+        JSONResponse: 201 with ``votes`` array.
+
     """
     logger.info(
         f"Creating batch vote for election {batch_data.election_id} by user {current_user.id}"
@@ -123,11 +151,19 @@ async def get_votes_by_user(
     user_id: str,
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
-    """
-    Get all votes by a specific user. Returns empty list if no votes.
-    Users can only request their own votes.
-    """
+    """Lists on-chain votes for a user id (self-only).
 
+    Args:
+        user_id: Must equal ``current_user.id``.
+        current_user: Authenticated user.
+
+    Returns:
+        JSONResponse: ``votes`` list (may be empty).
+
+    Raises:
+        HTTPException: 403 if ``user_id`` does not match caller.
+
+    """
     if user_id != str(current_user.id):
         raise HTTPException(status_code=403, detail="Can only access own votes")
     logger.info(f"Getting votes for user: {user_id}")
@@ -140,13 +176,19 @@ async def get_votes_by_user(
 async def get_results_by_election(
     election_id: str,
 ) -> JSONResponse:
-    """
-    Get all votes for a specific election.
+    """Returns candidate -> vote count map from the blockchain read API.
+
+    Args:
+        election_id: Election id path parameter.
+
+    Returns:
+        JSONResponse: Mapping of candidate id strings to integer counts.
+
     """
     logger.info(f"Getting votes for election: {election_id}")
 
     results = await vote_service.get_results_by_election(election_id)
-    
+
     return JSONResponse(content=results)
 
 
@@ -156,15 +198,23 @@ async def get_my_vote_for_election(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Get current user's vote for a specific election.
-    For anonymous elections, returns { has_voted: true } without candidate info.
+    """Returns the caller's vote for an election; anonymous mode hides candidate.
+
+    Args:
+        election_id: Election id.
+        current_user: Authenticated user.
+        session: DB session for anonymous flag lookup.
+
+    Returns:
+        JSONResponse: Vote payload or ``{"has_voted": true}`` for anonymous.
+
+    Raises:
+        VoteNotFoundError: No vote on record.
+
     """
     logger.info(
         f"Getting vote for election {election_id} by user {current_user.id}"
     )
-
-    from app.repository.election_setting_repository import ElectionSettingRepository
 
     setting_repo = ElectionSettingRepository(session)
     setting = await setting_repo.read_one(

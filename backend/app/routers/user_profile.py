@@ -21,8 +21,15 @@ async def create_user_profile(
     profile_data: UserProfileCreate,
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Create a new user profile.
+    """Creates a profile row for an existing user (one per user).
+
+    Args:
+        profile_data: Includes ``user_id`` and optional profile fields.
+        session: DB session.
+
+    Returns:
+        JSONResponse: 201 with profile JSON.
+
     """
     logger.info(f"Creating user profile for user: {profile_data.user_id}")
 
@@ -43,8 +50,16 @@ async def get_all_user_profiles(
     page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Get all user profiles with pagination.
+    """Paginated listing of all profiles.
+
+    Args:
+        page: Page index.
+        page_size: Page size.
+        session: DB session.
+
+    Returns:
+        JSONResponse: Array of profiles.
+
     """
     logger.info(
         f"Getting all user profiles - page: {page}, page_size: {page_size}"
@@ -64,8 +79,18 @@ async def get_my_profile(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Get current user's profile.
+    """Returns the profile for the authenticated user.
+
+    Args:
+        current_user: JWT-derived user.
+        session: DB session.
+
+    Returns:
+        JSONResponse: Profile JSON.
+
+    Raises:
+        UserNotFoundError: No profile row.
+
     """
     logger.info(f"Getting profile for current user: {current_user.id}")
 
@@ -88,8 +113,18 @@ async def get_user_profile_by_user_id(
     user_id: str,
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Get user profile by user ID.
+    """Looks up profile by owning user id.
+
+    Args:
+        user_id: User fk.
+        session: DB session.
+
+    Returns:
+        JSONResponse: Profile JSON.
+
+    Raises:
+        UserNotFoundError: Missing profile.
+
     """
     logger.info(f"Getting user profile for user: {user_id}")
 
@@ -112,8 +147,18 @@ async def get_user_profile_by_id(
     profile_id: str,
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Get user profile by ID.
+    """Fetches profile by profile primary key.
+
+    Args:
+        profile_id: Profile row id.
+        session: DB session.
+
+    Returns:
+        JSONResponse: Profile JSON.
+
+    Raises:
+        UserNotFoundError: Missing row.
+
     """
     logger.info(f"Getting user profile: {profile_id}")
 
@@ -137,8 +182,16 @@ async def update_my_profile(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Update current user's profile.
+    """Updates the caller's profile by ``user_id``.
+
+    Args:
+        profile_data: Partial fields.
+        current_user: Authenticated user.
+        session: DB session.
+
+    Returns:
+        JSONResponse: Updated profile.
+
     """
     logger.info(f"Updating profile for current user: {current_user.id}")
 
@@ -157,8 +210,16 @@ async def update_user_profile_by_user_id(
     profile_data: UserProfileUpdate,
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Update user profile by user ID.
+    """Updates profile identified by user fk.
+
+    Args:
+        user_id: User id.
+        profile_data: Partial fields.
+        session: DB session.
+
+    Returns:
+        JSONResponse: Updated profile.
+
     """
     logger.info(f"Updating user profile for user: {user_id}")
 
@@ -177,8 +238,16 @@ async def update_user_profile(
     profile_data: UserProfileUpdate,
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Update user profile information.
+    """Updates profile by profile id.
+
+    Args:
+        profile_id: Profile pk.
+        profile_data: Partial fields.
+        session: DB session.
+
+    Returns:
+        JSONResponse: Updated profile.
+
     """
     logger.info(f"Updating user profile: {profile_id}")
 
@@ -196,8 +265,15 @@ async def delete_my_profile(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Delete current user's profile.
+    """Deletes the authenticated user's profile row.
+
+    Args:
+        current_user: JWT user.
+        session: DB session.
+
+    Returns:
+        JSONResponse: Success detail.
+
     """
     logger.info(f"Deleting profile for current user: {current_user.id}")
 
@@ -220,8 +296,15 @@ async def delete_user_profile_by_user_id(
     user_id: str,
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Delete user profile by user ID.
+    """Deletes profile by user id.
+
+    Args:
+        user_id: User fk.
+        session: DB session.
+
+    Returns:
+        JSONResponse: Success detail.
+
     """
     logger.info(f"Deleting user profile for user: {user_id}")
 
@@ -242,8 +325,15 @@ async def delete_user_profile(
     profile_id: str,
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
-    """
-    Delete user profile by ID.
+    """Deletes profile by profile id.
+
+    Args:
+        profile_id: Profile pk.
+        session: DB session.
+
+    Returns:
+        JSONResponse: Success detail.
+
     """
     logger.info(f"Deleting user profile: {profile_id}")
 

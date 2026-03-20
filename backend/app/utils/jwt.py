@@ -16,11 +16,13 @@ logger = get_logger("jwt_utils")
 
 
 class JwtScenario(Enum):
-    """JWT authentication scenarios."""
+    """Supported JWT verification strategies."""
+
     AUTH_LOCAL = "auth_local"
 
 
 def _utcnow() -> datetime:
+    """Returns current UTC time with timezone awareness."""
     return datetime.now(timezone.utc)
 
 
@@ -30,6 +32,18 @@ def _create_token(
     token_type: str = "access",
     additional_claims: Optional[Dict[str, Any]] = None,
 ) -> str:
+    """Builds and signs a JWT with RS256.
+
+    Args:
+        subject: Numeric user id stored in ``sub`` (stringified).
+        expires_delta: Lifetime from issuance.
+        token_type: ``access`` or ``refresh`` claim.
+        additional_claims: Merged into payload (e.g. ``jti`` for refresh).
+
+    Returns:
+        str: Encoded JWT.
+
+    """
     now = _utcnow()
     expire_at = now + expires_delta
 
@@ -56,10 +70,17 @@ def create_access_token(
     expires_minutes: Optional[int] = None,
     claims: Optional[Dict[str, Any]] = None,
 ) -> str:
-    """
-    Create a signed JWT access token for the given subject.
-    """
+    """Creates a short-lived access JWT.
 
+    Args:
+        subject: User id.
+        expires_minutes: Override default from settings if provided.
+        claims: Optional extra payload fields.
+
+    Returns:
+        str: Signed access token.
+
+    """
     minutes = (
         expires_minutes
         if expires_minutes is not None
@@ -78,10 +99,17 @@ def create_refresh_token(
     expires_days: Optional[int] = None,
     claims: Optional[Dict[str, Any]] = None,
 ) -> str:
-    """
-    Create a signed JWT refresh token for the given subject.
-    """
+    """Creates a long-lived refresh JWT with a random ``jti`` unless provided.
 
+    Args:
+        subject: User id (string or int, coerced in payload).
+        expires_days: Override default refresh lifetime.
+        claims: Optional extra claims.
+
+    Returns:
+        str: Signed refresh token.
+
+    """
     days = (
         expires_days
         if expires_days is not None
@@ -102,20 +130,35 @@ def create_refresh_token(
 def create_pair_tokens(
     subject: int, claims: Optional[Dict[str, Any]] = None
 ) -> Dict[str, str]:
-    """
-    Create a pair of access and refresh tokens.
-    """
+    """Issues matching access and refresh tokens for login/register flows.
 
+    Args:
+        subject: User id.
+        claims: Optional shared extra claims.
+
+    Returns:
+        dict: Keys ``access_token`` and ``refresh_token``.
+
+    """
     access_token = create_access_token(subject=subject, claims=claims)
     refresh_token = create_refresh_token(subject=subject, claims=claims)
     return {"access_token": access_token, "refresh_token": refresh_token}
 
 
-def _decode_local_jwt(token: str, verify_exp: bool = True):
-    """
-    Decode a locally signed JWT token.
-    """
+def _decode_local_jwt(token: str, verify_exp: bool = True) -> Dict[str, Any]:
+    """Decodes a token signed with the app's RSA public key.
 
+    Args:
+        token: JWT string.
+        verify_exp: Whether to enforce ``exp``.
+
+    Returns:
+        dict: JWT payload.
+
+    Raises:
+        jwt.InvalidTokenError: On bad signature, expiry, or format.
+
+    """
     options = {"verify_aud": False, "verify_exp": verify_exp}
     payload = jwt.decode(
         token,
@@ -129,24 +172,38 @@ def _decode_local_jwt(token: str, verify_exp: bool = True):
 def decode_jwt(
     scenario: JwtScenario, token: str, verify_exp: bool = True
 ) -> Optional[Dict[str, Any]]:
-    """
-    Decode a JWT token based on the scenario.
-    """
+    """Dispatches decode by scenario (currently only local RSA).
 
+    Args:
+        scenario: Verification strategy enum value.
+        token: JWT string.
+        verify_exp: Passed to decoder.
+
+    Returns:
+        dict | None: Payload for ``AUTH_LOCAL``; None is not returned today.
+
+    Raises:
+        InvalidTokenError: Unknown scenario.
+
+    """
     if scenario == JwtScenario.AUTH_LOCAL:
         return _decode_local_jwt(token, verify_exp=verify_exp)
-    # Alternative variants: Auth0 scenario
-    # elif scenario == JwtScenario.AUTH0:
-    #     return _decode_auth0_jwt(token)
-    else:
-        raise InvalidTokenError("Unknown token method")
+    raise InvalidTokenError("Unknown token method")
 
 
 def get_token_subject(token: str) -> str:
-    """
-    Return the subject (sub) claim from token. Raises if token is invalid.
-    """
+    """Reads string ``sub`` claim from a valid access/refresh token.
 
+    Args:
+        token: JWT string.
+
+    Returns:
+        str: Subject user id as string.
+
+    Raises:
+        InvalidTokenError: Invalid token or missing ``sub``.
+
+    """
     payload = decode_jwt(JwtScenario.AUTH_LOCAL, token)
     if payload is None:
         raise InvalidTokenError("Invalid or expired token")
@@ -157,10 +214,16 @@ def get_token_subject(token: str) -> str:
 
 
 def is_token_type(token: str, expected_type: str) -> bool:
-    """
-    Check token 'type' claim equals expected_type.
-    """
+    """Compares JWT ``type`` claim without raising on malformed tokens.
 
+    Args:
+        token: JWT string.
+        expected_type: Expected ``type`` value (e.g. ``access``).
+
+    Returns:
+        bool: True if decode succeeds and types match.
+
+    """
     try:
         payload = decode_jwt(JwtScenario.AUTH_LOCAL, token)
         if payload is None:
@@ -171,8 +234,11 @@ def is_token_type(token: str, expected_type: str) -> bool:
 
 
 async def blacklist_token(token: str) -> None:
-    """
-    Blacklist a JWT token.
+    """Stores a token id in Redis until refresh TTL elapses.
+
+    Args:
+        token: Full JWT string used as part of the Redis key.
+
     """
     logger.info("blacklist_token: Adding token to blacklist")
 
@@ -184,16 +250,30 @@ async def blacklist_token(token: str) -> None:
 
 
 async def is_token_blacklisted(token: str) -> bool:
-    """
-    Check if a JWT token is blacklisted.
-    """
+    """Checks Redis for a blacklist marker.
 
+    Args:
+        token: Full JWT string.
+
+    Returns:
+        bool: True if blacklisted.
+
+    """
     return await get_cache(f"blacklist:{token}") == "1"
 
 
 def get_bearer_token(request: Request) -> dict:
-    """
-    Get token from request cookies.
+    """Extracts access JWT from cookies for local auth.
+
+    Args:
+        request: HTTP request.
+
+    Returns:
+        dict: ``{"method": JwtScenario.AUTH_LOCAL, "token": ...}``.
+
+    Raises:
+        TokenNotFoundError: No ``access_token`` cookie.
+
     """
     cookie_token = request.cookies.get("access_token")
     if cookie_token:

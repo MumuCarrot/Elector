@@ -13,6 +13,8 @@ if TYPE_CHECKING:
 
 
 class ElectionAccess(IdMixin, Base):
+    """Grants a user access to a private or restricted election."""
+
     __tablename__ = "election_access"
 
     election_id: Mapped[str] = mapped_column(String(36), ForeignKey("elections.id"), nullable=False)

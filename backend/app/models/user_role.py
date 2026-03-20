@@ -11,6 +11,8 @@ if TYPE_CHECKING:
 
 
 class UserRole(IdMixin, Base):
+    """Named role label (e.g. admin) for RBAC."""
+
     __tablename__ = "user_roles"
 
     name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
