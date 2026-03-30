@@ -86,6 +86,7 @@ async def mined_block(block: Block, blockchain: Node = Depends(get_blockchain)):
 
     """
     session = blockchain.session
+    await blockchain.rollback_chain_to_valid_prefix(session)
     chain_schemas = await blockchain.get_chain(session)
     last_block = await blockchain.last_block(session)
 

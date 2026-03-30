@@ -158,7 +158,7 @@ class Node:
             )
             await block_repo.create(genesis)
 
-        # sync from network
+        # sync from network (starts with rollback to longest valid local prefix)
         await self.resolve_conflicts(session)
         
         # sync transactions
@@ -255,6 +255,11 @@ class Node:
 
 
     @staticmethod
+    def _pow_timestamp_preimage(timestamp) -> str:
+        """Stable string for PoW preimage; integer seconds survive DB datetime round-trip."""
+        return str(int(dt_to_timestamp(timestamp)))
+
+    @staticmethod
     def valid_nonce(index, transactions, last_nonce, previous_hash, timestamp, nonce):
         """Checks proof-of-work: SHA256 digest must start with ``PROOF_OF_WORK_DIFFICULTY``.
 
@@ -276,40 +281,50 @@ class Node:
         if not transactions:
             transactions_dict = []
         else:
-            transactions_dict = [
-                tx.model_dump(mode="json")
-                if hasattr(tx, "model_dump")
-                else (tx.dict() if hasattr(tx, "dict") else tx)
-                for tx in transactions
-            ]
+            ordered = sorted(
+                transactions,
+                key=lambda t: getattr(t, "id", "") or "",
+            )
+            transactions_dict = [Node._tx_to_dict(tx) for tx in ordered]
         transactions_json = json.dumps(transactions_dict, sort_keys=True, default=str)
-        guess = f"{index}{transactions_json}{last_nonce}{previous_hash}{timestamp}{nonce}".encode()
+        ts_str = Node._pow_timestamp_preimage(timestamp)
+        guess = f"{index}{transactions_json}{last_nonce}{previous_hash}{ts_str}{nonce}".encode()
         guess_hash = hashlib.sha256(guess).hexdigest()
-        return guess_hash[:4] == settings.app.PROOF_OF_WORK_DIFFICULTY
+        return guess_hash[:len(settings.app.PROOF_OF_WORK_DIFFICULTY)] == settings.app.PROOF_OF_WORK_DIFFICULTY
 
 
     @staticmethod
     def _tx_to_dict(tx) -> dict:
-        """Normalizes a transaction-like object to a JSON-friendly dict.
+        """Normalizes a transaction-like object to a JSON-friendly dict for hashing/PoW.
+
+        ORM rows are converted via ``TransactionSchema`` so PoW/hash match
+        ``model_dump(mode="json")`` (same as mempool txs). ``created_at`` is
+        omitted: it is not stable across DB round-trips (precision/timezone).
 
         Args:
             tx: Pydantic model, dict-like, or ORM object with vote fields.
 
         Returns:
-            dict: Transaction fields suitable for hashing.
+            dict: Stable transaction fields suitable for hashing.
 
         """
+        stable_keys = ("id", "election_id", "voter_id", "candidate_id")
+        if isinstance(tx, TransactionModel):
+            d = TransactionSchema(
+                id=tx.id,
+                election_id=tx.election_id,
+                voter_id=tx.voter_id,
+                candidate_id=tx.candidate_id,
+                created_at=tx.created_at,
+            ).model_dump(mode="json")
+            return {k: d[k] for k in stable_keys if k in d}
         if hasattr(tx, "model_dump"):
-            return tx.model_dump(mode="json")
+            d = tx.model_dump(mode="json")
+            return {k: d[k] for k in stable_keys if k in d}
         if hasattr(tx, "dict"):
-            return tx.dict()
-        return {
-            "id": getattr(tx, "id", None),
-            "election_id": getattr(tx, "election_id", None),
-            "voter_id": getattr(tx, "voter_id", None),
-            "candidate_id": getattr(tx, "candidate_id", None),
-            "created_at": getattr(tx, "created_at", None),
-        }
+            d = tx.dict()
+            return {k: d[k] for k in stable_keys if k in d}
+        return {k: getattr(tx, k, None) for k in stable_keys}
 
 
     @classmethod
@@ -334,12 +349,12 @@ class Node:
             str: 64-character hex digest.
 
         """
-        txs = [cls._tx_to_dict(tx) for tx in transactions]
-        ts_str = (
-            timestamp.isoformat()
-            if hasattr(timestamp, "isoformat")
-            else str(timestamp)
+        ordered = sorted(
+            transactions,
+            key=lambda t: getattr(t, "id", "") or "",
         )
+        txs = [cls._tx_to_dict(tx) for tx in ordered]
+        ts_str = str(int(dt_to_timestamp(timestamp)))
         block_dict = {
             "index": index,
             "timestamp": ts_str,
@@ -459,10 +474,12 @@ class Node:
 
         if not chain:
             return False
-        
-        if chain and isinstance(chain[0], dict):
+
+        if isinstance(chain[0], dict):
             chain = TypeAdapter(List[BlockSchema]).validate_python(chain)
-        
+        elif isinstance(chain[0], BlockModel):
+            chain = [_model_to_schema_block(b) for b in chain]
+
         for i in range(1, len(chain)):
             last_block = chain[i - 1]
             block = chain[i]
@@ -480,6 +497,55 @@ class Node:
                 return False
         return True
 
+    async def rollback_chain_to_valid_prefix(self, session: AsyncSession) -> bool:
+        """Truncates the chain to the longest cryptographically valid prefix.
+
+        Transactions from removed blocks are discarded: they are not re-queued in the
+        mempool. Re-injecting them would let a local attacker race mempool state with
+        forged payloads sharing the same ids; clients must re-submit votes through the
+        normal API path.
+
+        Args:
+            session: Database session (each ``delete`` commits via repository).
+
+        Returns:
+            bool: True if one or more blocks were removed.
+
+        """
+        chain_schemas = await self._get_chain_schemas(session)
+        if not chain_schemas:
+            return False
+
+        # Unitl chain is valid
+        k = 0
+        for length in range(len(chain_schemas), 0, -1):
+            prefix = chain_schemas[:length]
+            if await self.valid_chain(chain=prefix):
+                k = length
+                break
+
+        # No valid blocks
+        if k == 0:
+            logger.error("No valid chain prefix found; chain left unchanged")
+            return False
+
+        # All blocks are valid
+        if k == len(chain_schemas):
+            return False
+
+        block_repo = BlockRepository(session)
+        blocks_orm = await block_repo.get_chain_ordered()
+        to_delete = blocks_orm[k:]
+        for block in reversed(to_delete):
+            await block_repo.delete(BlockModel.id == block.id)
+
+        logger.warning(
+            "Rolled back chain to %d block(s); dropped %d invalid tail block(s)",
+            k,
+            len(to_delete),
+        )
+        return True
+
 
     async def resolve_conflicts(self, session: AsyncSession) -> bool:
         """Replaces the local chain if a peer exposes a longer valid chain.
@@ -491,6 +557,8 @@ class Node:
             bool: True if the stored chain was replaced.
 
         """
+        await self.rollback_chain_to_valid_prefix(session)
+
         connection_host = "127.0.0.1" if self.host == "0.0.0.0" else self.host
         own_address = f"{connection_host}:{self.port}"
         block_repo = BlockRepository(session)
@@ -609,7 +677,8 @@ class Node:
 
     async def _mining_cycle(self, session: AsyncSession) -> None:
         """Mining cycle."""
-        
+        await self.resolve_conflicts(session)
+
         transactions = self.mempool.get_block_transaction()
 
         if not transactions:
@@ -625,7 +694,8 @@ class Node:
         
         index = last_block.index + 1
         previous_hash = self.hash(last_block)
-        timestamp = time.time()
+        # Integer Unix second: matches PoW preimage and survives datetime round-trip in PG.
+        timestamp = float(int(time.time()))
         nonce = 0
         last_nonce = last_block.nonce
         
@@ -643,12 +713,6 @@ class Node:
             logger.warning("Mining cycle: mempool changed, aborting")
             return
 
-        # Sync with network before creating block - another node may have mined same tx
-        await self.resolve_conflicts(session)
-        if not self.mempool.contains_all(transactions):
-            logger.warning("Mining cycle: tx already mined by another node, aborting")
-            return
-
         # Final check: abort if any tx already in chain (prevents duplicate blocks)
         tx_ids = [tx.id for tx in transactions]
         confirmed = await self._get_confirmed_tx_ids(session, tx_ids)
@@ -661,7 +725,7 @@ class Node:
             self.mempool.remove(already_mined)
             return
 
-        logger.info("Mining cycle: creating block index=%d nonce=%d", index, nonce)
+        logger.info("Mining cycle: creating block index=%d nonce=%d difficulty=%s", index, nonce, settings.app.PROOF_OF_WORK_DIFFICULTY)
         await self.new_block(
             session=session,
             index=index,
@@ -840,20 +904,20 @@ class Node:
         if not last:
             return None
 
-        tx_repo = TransactionRepository(session)
-        block_repo = BlockRepository(session)
-        await tx_repo.delete_many(TransactionModel.block_id == last.id)
-        await block_repo.delete(BlockModel.id == last.id)
-        for t in last.transactions:
-            self.mempool.new_transaction(
-                TransactionSchema(
-                    id=t.id,
-                    election_id=t.election_id,
-                    voter_id=t.voter_id,
-                    candidate_id=t.candidate_id,
-                    created_at=t.created_at,
-                )
+        txs_to_requeue = [
+            TransactionSchema(
+                id=t.id,
+                election_id=t.election_id,
+                voter_id=t.voter_id,
+                candidate_id=t.candidate_id,
+                created_at=t.created_at,
             )
+            for t in last.transactions
+        ]
+        block_repo = BlockRepository(session)
+        await block_repo.delete(BlockModel.id == last.id)
+        for tx in txs_to_requeue:
+            self.mempool.new_transaction(tx)
         return last
 
 

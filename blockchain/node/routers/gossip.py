@@ -55,6 +55,7 @@ async def gossip_chain(
 
     """
     session = blockchain.session
+    await blockchain.rollback_chain_to_valid_prefix(session)
     current_chain = await blockchain.get_chain(session)
     if len(ctx.chain) > len(current_chain) and await blockchain.valid_chain(chain=ctx.chain):
         await blockchain.replace_chain_with(session, ctx.chain, ctx.tx_ids)

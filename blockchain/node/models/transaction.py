@@ -27,7 +27,7 @@ class Transaction(IdMixin, Base):
     __tablename__ = "transactions"
     block_id: Mapped[str] = mapped_column(
         String(36),
-        ForeignKey("blockchain_blocks.id"),
+        ForeignKey("blockchain_blocks.id", ondelete="CASCADE"),
         nullable=False,
     )
     election_id: Mapped[str] = mapped_column(String, nullable=False)

@@ -214,6 +214,7 @@ class BaseRepository:
         condition: Any = True,
         page: int = 1,
         page_size: int = 0,
+        order_by: Any | None = None,
     ) -> Any:
         """Returns a slice of rows using offset/limit pagination.
 
@@ -221,6 +222,7 @@ class BaseRepository:
             condition: Filter expression; default includes all rows.
             page: 1-based page index.
             page_size: Maximum rows per page.
+            order_by: Optional SQLAlchemy order expression(s); omit for DB default order.
 
         Returns:
             List of instances for the requested page.
@@ -228,9 +230,14 @@ class BaseRepository:
         """
         try:
             offset = (page - 1) * page_size
-            result = await self.session.execute(
-                select(self.model).where(condition).offset(offset).limit(page_size)
-            )
+            stmt = select(self.model).where(condition)
+            if order_by is not None:
+                if isinstance(order_by, (list, tuple)):
+                    stmt = stmt.order_by(*order_by)
+                else:
+                    stmt = stmt.order_by(order_by)
+            stmt = stmt.offset(offset).limit(page_size)
+            result = await self.session.execute(stmt)
             data = result.scalars().all()
 
             if not data:

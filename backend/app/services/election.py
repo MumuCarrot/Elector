@@ -307,7 +307,13 @@ class ElectionService:
 
         repository = ElectionRepository(session)
         elections = await repository.read_paginated(
-            condition=True, page=page, page_size=page_size
+            condition=True,
+            page=page,
+            page_size=page_size,
+            order_by=(
+                Election.created_at.desc().nulls_last(),
+                Election.id.desc(),
+            ),
         )
 
         if not elections:

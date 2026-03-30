@@ -48,7 +48,12 @@ async def create_election(
 @router.get("")
 async def get_all_elections(
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
+    page_size: int = Query(
+        100,
+        ge=1,
+        le=100,
+        description="Number of items per page (default 100 so new elections are not hidden)",
+    ),
     session: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
     """Paginated list of elections with nested relations per item.
