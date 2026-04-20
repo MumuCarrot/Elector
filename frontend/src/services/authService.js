@@ -73,6 +73,19 @@ class AuthService {
     }
 
     /**
+     * Updates the authenticated user's account (email, phone, names; optional password).
+     *
+     * @param {Record<string, unknown>} userData - Partial user fields for {@link UserUpdate}.
+     * @returns {Promise<unknown>} Updated user payload (`UserResponse` shape).
+     */
+    async updateCurrentUser(userData) {
+        return this.request('/auth/me', {
+            method: 'PUT',
+            data: userData,
+        });
+    }
+
+    /**
      * Refreshes the session token using HTTP-only cookies.
      *
      * @returns {Promise<unknown>} Refresh response body.

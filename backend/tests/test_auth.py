@@ -82,6 +82,25 @@ async def test_me_returns_user(auth_client):
 
 
 @pytest.mark.asyncio
+async def test_me_put_updates_account_fields(auth_client):
+    r = await auth_client.put(
+        "/api/v1/auth/me",
+        json={
+            "email": "testuser@example.com",
+            "phone": "+10000000000",
+            "first_name": "Updated",
+            "last_name": "Name",
+        },
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["email"] == "testuser@example.com"
+    assert body["phone"] == "+10000000000"
+    assert body["first_name"] == "Updated"
+    assert body["last_name"] == "Name"
+
+
+@pytest.mark.asyncio
 async def test_refresh_tokens():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

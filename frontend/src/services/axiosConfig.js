@@ -91,10 +91,22 @@ axiosInstance.interceptors.response.use(
         }
 
         if (error.response) {
-            const errorMessage = error.response.data?.message ||
-                               error.response.data?.error ||
-                               `HTTP error! status: ${error.response.status}`;
-            return Promise.reject(new Error(errorMessage));
+            const data = error.response.data;
+            const detail = data?.detail;
+            const fromDetail =
+                typeof detail === 'string'
+                    ? detail
+                    : Array.isArray(detail) && detail[0]?.msg
+                      ? detail.map((e) => e.msg || JSON.stringify(e)).join('; ')
+                      : null;
+            const errorMessage =
+                fromDetail ||
+                data?.message ||
+                data?.error ||
+                `HTTP error! status: ${error.response.status}`;
+            const wrapped = new Error(errorMessage);
+            wrapped.response = error.response;
+            return Promise.reject(wrapped);
         }
 
         if (error.request) {

@@ -52,6 +52,20 @@ describe('authService', () => {
         });
         expect(result).toEqual({ id: 1 });
     });
+
+    test('updateCurrentUser sends PUT to /auth/me', async () => {
+        axiosInstance.mockResolvedValueOnce({ data: { id: 'u1', email: 'a@b.com' } });
+
+        const payload = { email: 'a@b.com', phone: '+1' };
+        const result = await authService.updateCurrentUser(payload);
+
+        expect(axiosInstance).toHaveBeenCalledWith({
+            url: '/auth/me',
+            method: 'PUT',
+            data: payload,
+        });
+        expect(result).toEqual({ id: 'u1', email: 'a@b.com' });
+    });
 });
 
 

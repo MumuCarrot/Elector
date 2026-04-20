@@ -14,8 +14,9 @@ from app.schemas.auth import (
     RegisterRequest,
 )
 from app.models.user import User
-from app.schemas.user import UserResponse
+from app.schemas.user import UserResponse, UserUpdate
 from app.services.auth import auth_service
+from app.services.user import user_service
 
 router = APIRouter(tags=["auth"])
 logger = get_logger("auth_router")
@@ -166,3 +167,27 @@ async def get_me(
     user_response = UserResponse.model_validate(current_user)
 
     return JSONResponse(content=user_response.model_dump(mode="json"))
+
+
+@router.put("/me")
+async def update_me(
+    user_data: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    """Updates the authenticated user's account fields (email, phone, names, optional password).
+
+    Args:
+        user_data: Partial ``UserUpdate`` payload.
+        current_user: Authenticated user from JWT.
+        session: DB session.
+
+    Returns:
+        JSONResponse: Updated ``UserResponse``.
+
+    """
+    logger.info(f"Updating current user: {current_user.id}")
+
+    updated = await user_service.update_user(session, current_user.id, user_data)
+
+    return JSONResponse(content=updated.model_dump(mode="json"))

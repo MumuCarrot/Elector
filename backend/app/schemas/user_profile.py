@@ -1,7 +1,8 @@
 from datetime import date, datetime
 from typing import Optional
+from urllib.parse import urlparse
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class UserProfileBase(BaseModel):
@@ -11,6 +12,26 @@ class UserProfileBase(BaseModel):
     avatar_url: Optional[str] = None
     address: Optional[str] = None
 
+    @field_validator("birth_date")
+    @classmethod
+    def birth_date_not_in_future(cls, v: Optional[date]) -> Optional[date]:
+        """Disallow future dates (cannot be later than today)."""
+        if v is not None and v > date.today():
+            raise ValueError("Birth date cannot be later than today")
+        return v
+
+    @field_validator("avatar_url")
+    @classmethod
+    def avatar_url_http_only(cls, v: Optional[str]) -> Optional[str]:
+        """Require http(s) when set; empty string becomes None."""
+        if v is not None and str(v).strip() == "":
+            return None
+        if v is not None:
+            parsed = urlparse(v)
+            if parsed.scheme not in ("http", "https"):
+                raise ValueError("Avatar URL must use http or https")
+        return v
+
 
 class UserProfileCreate(UserProfileBase):
     """Schema for creating a new user profile."""
@@ -18,12 +39,10 @@ class UserProfileCreate(UserProfileBase):
     user_id: str
 
 
-class UserProfileUpdate(BaseModel):
-    """Schema for updating user profile."""
+class UserProfileUpdate(UserProfileBase):
+    """Schema for updating user profile (partial fields, all optional)."""
 
-    birth_date: Optional[date] = None
-    avatar_url: Optional[str] = None
-    address: Optional[str] = None
+    pass
 
 
 class UserProfileResponse(UserProfileBase):

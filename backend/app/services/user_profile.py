@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
+import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging_config import get_logger
@@ -16,6 +17,56 @@ from app.schemas.user_profile import (
 )
 
 logger = get_logger("user_profile_service")
+
+
+def _bytes_look_like_image(chunk: bytes) -> bool:
+    """Sniff common raster formats when Content-Type is missing or generic."""
+    if len(chunk) < 12:
+        return False
+    if chunk[:3] == b"\xff\xd8\xff":
+        return True
+    if chunk[:8] == b"\x89PNG\r\n\x1a\n":
+        return True
+    if chunk[:6] in (b"GIF87a", b"GIF89a"):
+        return True
+    if chunk[:4] == b"RIFF" and chunk[8:12] == b"WEBP":
+        return True
+    return False
+
+
+async def _validate_avatar_url_points_to_image(url: str) -> None:
+    """Ensures the URL responds with an image (Content-Type or magic bytes).
+
+    Raises:
+        ValidationError: Invalid URL, not reachable, or not an image.
+
+    """
+    async with httpx.AsyncClient(
+        timeout=10.0, follow_redirects=True, headers={"User-Agent": "Elector-Backend/1.0"}
+    ) as client:
+        try:
+            head = await client.head(url)
+            ct = (head.headers.get("content-type") or "").split(";")[0].strip().lower()
+            if ct.startswith("image/"):
+                return
+        except httpx.HTTPError:
+            pass
+
+        try:
+            resp = await client.get(url)
+            resp.raise_for_status()
+        except httpx.HTTPError as e:
+            raise ValidationError("Avatar URL is not reachable or returned an error") from e
+
+        ct = (resp.headers.get("content-type") or "").split(";")[0].strip().lower()
+        if ct.startswith("image/"):
+            return
+
+        chunk = resp.content[:32]
+        if _bytes_look_like_image(chunk):
+            return
+
+        raise ValidationError("Avatar URL does not point to a supported image")
 
 
 class UserProfileService:
@@ -60,6 +111,9 @@ class UserProfileService:
             raise ValidationError(
                 f"User profile for user {profile_data.user_id} already exists"
             )
+
+        if profile_data.avatar_url:
+            await _validate_avatar_url_points_to_image(profile_data.avatar_url)
 
         new_profile = UserProfile(
             user_id=profile_data.user_id,
@@ -160,6 +214,8 @@ class UserProfileService:
             raise UserNotFoundError(f"User profile with id {profile_id} not found")
 
         update_dict = profile_data.model_dump(exclude_unset=True)
+        if update_dict.get("avatar_url"):
+            await _validate_avatar_url_points_to_image(update_dict["avatar_url"])
 
         updated_profile = await repository.update(
             data=update_dict, condition=UserProfile.id == profile_id
@@ -201,6 +257,8 @@ class UserProfileService:
             )
 
         update_dict = profile_data.model_dump(exclude_unset=True)
+        if update_dict.get("avatar_url"):
+            await _validate_avatar_url_points_to_image(update_dict["avatar_url"])
 
         updated_profile = await repository.update(
             data=update_dict, condition=UserProfile.user_id == user_id
