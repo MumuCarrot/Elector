@@ -11,7 +11,7 @@ function Layout() {
     return (
         <>
             <Header />
-            <main className="flex-1 p-8 min-h-[calc(100vh-64px)]">
+            <main className="content-center p-8 min-h-[calc(100vh-65px)]">
                 <Outlet />
             </main>
         </>
